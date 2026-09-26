@@ -1,0 +1,146 @@
+import { expect, test } from "bun:test";
+import {
+  detectRenderArea,
+  readImageSize,
+  validateFile,
+  validateSize,
+} from "../src/image";
+
+test("paired game borders are detected without treating scene content or a solid image as borders", () => {
+  const width = 200,
+    height = 100;
+  const pixels = (border: (x: number, y: number) => number[] | null) => {
+    const data = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++) {
+        const color = border(x, y) ?? [
+          (x * 17) % 256,
+          (y * 19 + x * 3) % 256,
+          (x * 29) % 256,
+        ];
+        data.set([...color, 255], (y * width + x) * 4);
+      }
+    return { width, height, data };
+  };
+  const full = { x: 0, y: 0, width, height };
+  expect(detectRenderArea(pixels(() => null))).toEqual(full);
+  expect(detectRenderArea(pixels(() => [55, 105, 155]))).toEqual(full);
+  expect(
+    detectRenderArea(
+      pixels((_x, y) => (y < 10 || y >= 90 ? [0, 0, 0] : [90, 95, 100])),
+    ),
+  ).toEqual({ x: 0, y: 10, width, height: 80 });
+  expect(
+    detectRenderArea(
+      pixels((x, y) =>
+        y < 8 || y >= 92
+          ? [50, 100, 150].map((value) => value + (x % 2 ? 12 : -12))
+          : null,
+      ),
+    ),
+  ).toEqual({ x: 0, y: 8, width, height: 84 });
+  expect(
+    detectRenderArea(
+      pixels((x, y) =>
+        y < 8 || y >= 92
+          ? [50 + (x % 10), 100 + (x % 10), 150 + (x % 10)]
+          : null,
+      ),
+    ),
+  ).toEqual({ x: 0, y: 8, width, height: 84 });
+  expect(
+    detectRenderArea(
+      pixels((x, y) =>
+        x < 20 || x >= 180 || y < 10 || y >= 90 ? [0, 0, 0] : null,
+      ),
+    ),
+  ).toEqual({ x: 20, y: 10, width: 160, height: 80 });
+  expect(
+    detectRenderArea(pixels((_x, y) => (y < 10 ? [0, 0, 0] : null))),
+  ).toEqual(full);
+  // A home indicator in the lower band must not change the projection area.
+  expect(
+    detectRenderArea(
+      pixels((x, y) => {
+        if (y >= 96 && y <= 97 && x >= 75 && x < 125) return [245, 245, 245];
+        return y < 15 || y >= 85 ? [55, 105, 155] : null;
+      }),
+    ),
+  ).toEqual({ x: 0, y: 15, width, height: 70 });
+  // A thin app footer is outside the paired blue bands, not part of their thickness.
+  expect(
+    detectRenderArea(
+      pixels((_x, y) => {
+        if (y === 99) return [55, 105, 155];
+        if (y >= 98) return [20, 30, 35];
+        if (y >= 96) return [40, 80, 120]; // Resampled footer/band transition.
+        return y < 10 || y >= 88 ? [55, 105, 155] : null;
+      }),
+    ),
+  ).toEqual({ x: 0, y: 10, width, height: 78 });
+  for (const border of [
+    (_x: number, y: number) => (y < 10 ? [55, 105, 155] : null),
+    (_x: number, y: number) => (y < 10 || y >= 85 ? [55, 105, 155] : null),
+    (_x: number, y: number) => (y < 30 || y >= 70 ? [55, 105, 155] : null),
+    (x: number, y: number) => {
+      if (y < 6 || y >= 94) return [(x * 31) % 256, 10, 10];
+      return y < 16 || y >= 84 ? [55, 105, 155] : null;
+    },
+  ])
+    expect(detectRenderArea(pixels(border))).toEqual(full);
+});
+
+function png(width: number, height: number, animated = false): File {
+  const b = new Uint8Array(animated ? 65 : 45),
+    v = new DataView(b.buffer);
+  b.set([137, 80, 78, 71, 13, 10, 26, 10]);
+  v.setUint32(8, 13);
+  v.setUint32(12, 0x49484452);
+  v.setUint32(16, width);
+  v.setUint32(20, height);
+  v.setUint32(33, animated ? 8 : 0);
+  v.setUint32(37, animated ? 0x6163544c : 0x49444154);
+  return new File([b], "test.png", { type: "image/png" });
+}
+test("PNG dimensions are validated before decoding", async () => {
+  expect(await readImageSize(png(1536, 709))).toEqual({
+    width: 1536,
+    height: 709,
+  });
+  await expect(readImageSize(png(100000, 100000))).rejects.toThrow();
+  await expect(readImageSize(png(1536, 709, true))).rejects.toThrow(
+    "アニメーション",
+  );
+});
+test("unsupported, oversized, malformed and zero-sized images are rejected", async () => {
+  expect(() => validateFile({ type: "image/svg+xml", size: 100 })).toThrow();
+  expect(() =>
+    validateFile({ type: "image/png", size: 256 * 1024 * 1024 + 1 }),
+  ).toThrow();
+  expect(() => validateSize({ width: 0, height: 1 })).toThrow();
+  expect(() => validateSize({ width: 1.1, height: 1 })).toThrow();
+  await expect(
+    readImageSize(
+      new File(["not a png image"], "bad.png", { type: "image/png" }),
+    ),
+  ).rejects.toThrow();
+  await expect(
+    readImageSize(
+      new File([new Uint8Array([255, 216, 255])], "bad.jpg", {
+        type: "image/jpeg",
+      }),
+    ),
+  ).rejects.toThrow();
+});
+test("WebP animation flag is rejected", async () => {
+  const b = new Uint8Array(30),
+    v = new DataView(b.buffer);
+  b.set(new TextEncoder().encode("RIFF"));
+  v.setUint32(4, 22, true);
+  b.set(new TextEncoder().encode("WEBPVP8X"), 8);
+  v.setUint32(16, 10, true);
+  b[20] = 2;
+  await expect(
+    readImageSize(new File([b], "animated.webp", { type: "image/webp" })),
+  ).rejects.toThrow("アニメーション");
+});
