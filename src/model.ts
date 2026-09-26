@@ -1,12 +1,20 @@
 import {
+  buildProjection,
   type CameraCalibration,
+  circlePoint,
+  circleValid,
   DEFAULT_CALIBRATION,
   distance,
   type GameDistance,
   type GroundLength,
   type GroundPoint,
+  groundLength,
   groundPoint,
+  groundToImage,
+  type ImageRect,
+  imageToGround,
   positive,
+  type Size,
 } from "./geometry";
 
 export type Endpoint =
@@ -123,6 +131,12 @@ export function exists(doc: AnalysisDocument, s: Selection): boolean {
   }
 }
 export type Edit =
+  | {
+      type: "calibration";
+      value: CameraCalibration;
+      size: Size;
+      renderArea: ImageRect;
+    }
   | { type: "pin"; value: Pin }
   | { type: "group"; value: Group }
   | { type: "measurement"; value: Measurement }
@@ -152,6 +166,61 @@ function upsert<T extends { id: string }>(
 export function applyEdit(doc: AnalysisDocument, edit: Edit): AnalysisDocument {
   let next: AnalysisDocument;
   switch (edit.type) {
+    case "calibration": {
+      const previous = buildProjection(
+        doc.calibration,
+        edit.size,
+        edit.renderArea,
+      );
+      const projection = buildProjection(
+        edit.value,
+        edit.size,
+        edit.renderArea,
+      );
+      if (
+        doc.calibration.elevationDegrees === edit.value.elevationDegrees &&
+        doc.calibration.verticalFovDegrees === edit.value.verticalFovDegrees &&
+        doc.calibration.rollDegrees === edit.value.rollDegrees &&
+        doc.calibration.principalPoint.x === edit.value.principalPoint.x &&
+        doc.calibration.principalPoint.y === edit.value.principalPoint.y
+      )
+        return doc;
+      const remap = (point: GroundPoint): GroundPoint => {
+        const image = groundToImage(point, previous);
+        const ground = image && imageToGround(image, projection);
+        if (!ground || !groundToImage(ground, projection))
+          throw new Error("設定を変更すると既存の点を地面に投影できません。");
+        return ground;
+      };
+      let reference = doc.reference;
+      if (reference) {
+        const center = remap(reference.center);
+        // ponytail: preserve center and one +X rim anchor; use a multi-point refit if full-outline fitting is needed.
+        const rim = remap(
+          circlePoint(reference.center, reference.radiusGround, 0),
+        );
+        const radiusGround = groundLength(distance(center, rim));
+        if (reference.radiusGame !== null)
+          checkRadius(reference.radiusGame / radiusGround);
+        if (!circleValid(center, radiusGround, projection))
+          throw new Error("基準円がカメラ前方に収まりません。");
+        reference = { ...reference, center, radiusGround };
+      }
+      next = {
+        ...doc,
+        calibration: edit.value,
+        pins: doc.pins.map((pin) => ({ ...pin, point: remap(pin.point) })),
+        guides: doc.guides.map((guide) => ({
+          ...guide,
+          center:
+            guide.center.kind === "point"
+              ? { kind: "point", point: remap(guide.center.point) }
+              : guide.center,
+        })),
+        reference,
+      };
+      break;
+    }
     case "pin": {
       checkPoint(edit.value.point);
       if (

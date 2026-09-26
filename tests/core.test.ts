@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import assert from "node:assert/strict";
 import rangeCalibration from "../docs/calibration/range-2026-09-26.json";
 import {
   buildProjection,
@@ -71,6 +72,86 @@ function populated(): AnalysisDocument {
     },
   });
 }
+test("calibration preserves image anchors, recalculates distances, and undoes atomically", () => {
+  const doc = applyEdit(
+    applyEdit(populated(), {
+      type: "guide",
+      value: {
+        id: "free",
+        center: { kind: "point", point: groundPoint(0.1, 0.1) },
+        radiusGame: gameDistance(100),
+      },
+    }),
+    {
+      type: "measurement",
+      value: { id: "m", from: endpoint("a"), to: endpoint("b") },
+    },
+  );
+  const value = {
+    elevationDegrees: 35,
+    verticalFovDegrees: 12,
+    rollDegrees: 7,
+    principalPoint: { x: 0.48, y: 0.55 },
+  };
+  const size = { width: 1536, height: 900 };
+  const renderArea = { x: 0, y: 90, width: 1536, height: 709 };
+  const before = buildProjection(doc.calibration, size, renderArea);
+  const after = buildProjection(value, size, renderArea);
+  const edit = { type: "calibration" as const, value, size, renderArea };
+  const next = applyEdit(doc, edit);
+  assert(doc.reference && next.reference);
+  for (let i = 0; i < doc.pins.length; i++) {
+    const image = groundToImage(doc.pins[i].point, before);
+    assert(image);
+    pointClose(groundToImage(next.pins[i].point, after), image);
+  }
+  const oldCenter = resolveCenter(doc, doc.guides[0].center);
+  const newCenter = resolveCenter(next, next.guides[0].center);
+  assert(oldCenter && newCenter);
+  const centerImage = groundToImage(oldCenter, before);
+  const referenceImage = groundToImage(doc.reference.center, before);
+  const rimImage = groundToImage(
+    circlePoint(doc.reference.center, doc.reference.radiusGround, 0),
+    before,
+  );
+  assert(centerImage && referenceImage && rimImage);
+  pointClose(groundToImage(newCenter, after), centerImage);
+  pointClose(groundToImage(next.reference.center, after), referenceImage);
+  const rim = imageToGround(rimImage, after);
+  assert(rim);
+  close(next.reference.radiusGround, distance(next.reference.center, rim));
+  expect(next.reference.radiusGame).toBe(doc.reference.radiusGame);
+  expect(next.guides[0].radiusGame).toBe(doc.guides[0].radiusGame);
+  expect(measuredDistance(next, next.measurements[0])).not.toBe(
+    measuredDistance(doc, doc.measurements[0]),
+  );
+  const history = commit(newHistory(doc), next);
+  expect(undo(history).present).toEqual(doc);
+  expect(redo(undo(history)).present).toEqual(next);
+  expect(applyEdit(next, edit)).toBe(next);
+  expect(
+    applyEdit(doc, {
+      ...edit,
+      value: {
+        elevationDegrees: 25.2,
+        verticalFovDegrees: 9.92,
+        rollDegrees: 0,
+        principalPoint: { x: 0.5, y: 0.5 },
+      },
+    }),
+  ).toBe(doc);
+  for (const invalid of [
+    { ...value, elevationDegrees: 0 },
+    { ...value, elevationDegrees: 91 },
+    { ...value, verticalFovDegrees: 180 },
+    { ...value, rollDegrees: Number.NaN },
+    { ...value, principalPoint: { x: 1.1, y: 0.5 } },
+    { ...value, elevationDegrees: 0.01, principalPoint: { x: 0.5, y: 1 } },
+  ])
+    expect(() => applyEdit(doc, { ...edit, value: invalid })).toThrow();
+  expect(doc.calibration).toEqual(DEFAULT_CALIBRATION);
+});
+
 describe("perspective geometry", () => {
   test("resolution-independent camera has an orthonormal ground basis", () => {
     close(
