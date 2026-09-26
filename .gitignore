@@ -4,4 +4,5 @@ test-results/
 *.local
 .DS_Store
 
+.agents
 .codegraph
