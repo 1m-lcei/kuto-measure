@@ -141,6 +141,56 @@ try {
     page.on("dialog", (d) => void d.accept());
     try {
       await page.goto(`http://127.0.0.1:${server.port}/nested/`);
+      for (const width of [1440, 780, 779, 390, 320, 1440]) {
+        await page.locator("#theme-toggle").focus();
+        await page.setViewportSize({ width, height: 1000 });
+        await page.waitForFunction(() => {
+          const header = document.getElementById("header");
+          return (
+            (header?.firstElementChild?.id === "header-icons") ===
+            matchMedia("(width < 780px)").matches
+          );
+        });
+        assert.equal(
+          await page.locator(":focus").getAttribute("id"),
+          "theme-toggle",
+        );
+        const [title, files, icons] = await Promise.all(
+          [
+            ".header hgroup",
+            ".header-actions:not(#header-icons)",
+            "#header-icons",
+          ].map((selector) =>
+            page.locator(selector).evaluate((el) => {
+              const { top, right, bottom, left } = el.getBoundingClientRect();
+              return { top, right, bottom, left };
+            }),
+          ),
+        );
+        for (const box of [title, files, icons])
+          assert(
+            box.left >= 0 && box.right <= width,
+            `Header overflows at ${width}px`,
+          );
+        if (width < 780) {
+          assert(icons.bottom <= title.top && title.bottom <= files.top);
+          await page.locator("#menu-trigger").focus();
+          await page.keyboard.press("Tab");
+          assert.equal(await page.locator(":focus").getAttribute("id"), "file");
+        } else {
+          assert(title.right <= files.left && files.right <= icons.left);
+          assert(
+            Math.max(title.top, files.top, icons.top) <
+              Math.min(title.bottom, files.bottom, icons.bottom),
+          );
+          await page.locator("#file").focus();
+          await page.keyboard.press("Tab");
+          assert.equal(
+            await page.locator(":focus").getAttribute("id"),
+            "help-trigger",
+          );
+        }
+      }
       assert.equal(
         await page.locator('dialog button[command="close"]').count(),
         0,

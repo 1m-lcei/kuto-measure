@@ -843,6 +843,21 @@ element("theme-toggle").addEventListener("click", () => {
   saveTheme();
 });
 element("theme-toggle").hidden = false;
+const header = element("header"),
+  headerIcons = element("header-icons"),
+  narrowHeader = matchMedia("(width < 780px)");
+function arrangeHeader() {
+  const focused = document.activeElement;
+  // Keep keyboard and reading order aligned with the visible layout.
+  header.insertBefore(
+    headerIcons,
+    narrowHeader.matches ? header.firstElementChild : null,
+  );
+  if (focused instanceof HTMLElement && headerIcons.contains(focused))
+    focused.focus({ preventScroll: true });
+}
+arrangeHeader();
+narrowHeader.addEventListener("change", arrangeHeader);
 element("about-trigger").addEventListener("click", () =>
   element("header-menu").hidePopover(),
 );
