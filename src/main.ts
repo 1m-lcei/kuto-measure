@@ -695,7 +695,7 @@ async function openFiles(files: FileList | File[]) {
       history.present.reference ||
       history.present.guides.length ||
       history.present.measurements.length) &&
-    !window.confirm("現在の解析内容を破棄して別の画像を開きますか？")
+    !window.confirm("現在の編集内容を破棄して別の画像を開きますか？")
   ) {
     loading = false;
     refresh();
@@ -746,7 +746,7 @@ async function openFiles(files: FileList | File[]) {
   } catch (e) {
     if (request === loadRequest) {
       showError(e);
-      status("画像を読み込めませんでした。現在の解析は保持しています。");
+      status("画像を読み込めませんでした。現在の編集は保持しています。");
     }
   } finally {
     if (request === loadRequest) {

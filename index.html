@@ -89,7 +89,7 @@
       </div>
       <div id="error" role="alert" hidden></div>
       <div class="layout">
-        <section class="canvas-panel" aria-label="画像解析">
+        <section class="canvas-panel" aria-label="編集">
           <!-- biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-operated image workspace supports arrows and Enter -->
           <div id="viewport" role="application" tabindex="0" aria-label="画像表示領域。矢印キーとEnterで作成できます。">
             <div id="empty">
@@ -105,8 +105,8 @@
             </div>
             <div id="stage" hidden>
               <img id="image" alt="" draggable="false">
-              <svg id="overlay" xmlns="http://www.w3.org/2000/svg" aria-label="解析オブジェクト">
-                <title>解析オブジェクト</title>
+              <svg id="overlay" xmlns="http://www.w3.org/2000/svg" aria-label="オブジェクト">
+                <title>オブジェクト</title>
               </svg>
             </div>
           </div>
@@ -121,7 +121,7 @@
             </div>
           </div>
         </section>
-        <aside class="inspector-stack" aria-label="解析設定">
+        <aside class="inspector-stack" aria-label="距離設定">
           <details id="reference-panel" class="inspector" open>
             <summary>基準円 <span>距離の設定</span></summary>
             <div class="inspector-body">
@@ -144,7 +144,7 @@
             </div>
           </details>
           <details id="analysis-panel" class="inspector" open>
-            <summary>解析パネル <span>設定・オブジェクト</span></summary>
+            <summary>編集パネル <span>設定・オブジェクト</span></summary>
             <div class="inspector-body">
               <section id="properties">
                 <div class="section-title">
@@ -195,7 +195,7 @@
       </div>
       <footer class="statusbar">
         <p id="status" role="status" aria-live="polite">画像を開いてください。</p>
-        <span>解析内容はタブを閉じると失われます</span>
+        <span>編集内容はタブを閉じると失われます</span>
       </footer>
     </main>
     <dialog id="help" aria-labelledby="help-title" closedby="any">
