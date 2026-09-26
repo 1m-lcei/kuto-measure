@@ -19,7 +19,7 @@ means, and endpoint references resolve against the current document.
 
 ## Shared camera, per-image render area
 
-`CameraCalibration` stores elevation (25.2°), roll (0°), vertical FOV (9.92°),
+`CameraCalibration` defaults to pitch (`elevationDegrees`, 25.2° downward from horizontal), roll (0°), vertical FOV (9.92°),
 and principal-point fractions (0.5, 0.5). It contains no screenshot dimensions
 or pixel-space vanishing points. The measurement evidence is in
 `calibration/range-2026-09-26.json`. See `calibration/README.md` for limitations.
@@ -115,6 +115,16 @@ retained and listed but not drawn. Invalid reference edits are rejected. An empt
 group has no center; its dependent objects remain suspended until it has members.
 
 ## Transactions and export
+
+Advanced settings expose the camera parameters in the reference panel. A calibration
+edit reprojects pins and free centers through their old image positions into the new
+Ground plane. The reference circle keeps its projected center and uses the distance
+to its remapped old +X rim point as its new radius; its full outline is not preserved.
+Known Game radii remain unchanged, and group centers and scale are derived again.
+Invalid point mappings or reference circles reject the entire edit. Calibration and
+remapped geometry share one history snapshot, including Undo/Redo. The projection is
+rebuilt from the current document for display and export. Loading another image resets
+calibration. Hiding advanced settings only hides controls; it does not reset values.
 
 `applyEdit` is a pure transition. A drag previews changes against its starting
 document, commits once on release, and discards them on Escape/capture loss/resize.

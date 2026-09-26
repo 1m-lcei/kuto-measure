@@ -648,6 +648,19 @@
   .inspector-body {
     padding: 16px;
   }
+  #projection-settings {
+    margin-top: 18px;
+  }
+  #projection-fields {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  #projection-fields legend {
+    font-size: 12px;
+    font-weight: 650;
+  }
   .inspector section + section {
     border-top: 1px solid var(--border);
     padding-top: 18px;

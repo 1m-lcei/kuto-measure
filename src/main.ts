@@ -4,6 +4,7 @@ import {
   circleValid,
   clientPoint,
   clientToImage,
+  DEFAULT_CALIBRATION,
   distance,
   type GroundPoint,
   gameDistance,
@@ -148,6 +149,18 @@ function draw() {
   if (result.warnings.length) status(result.warnings[0]);
 }
 function refresh() {
+  if (resource) {
+    try {
+      projection = buildProjection(
+        history.present.calibration,
+        resource,
+        resource.renderArea,
+      );
+    } catch (e) {
+      projection = null;
+      showError(e);
+    }
+  }
   if (selection && !exists(history.present, selection)) selection = null;
   panels.render(history, selection, projection, !!resource);
   for (const button of document.querySelectorAll<HTMLButtonElement>(
@@ -192,6 +205,7 @@ function editDocument(edit: Edit) {
   try {
     const next = applyEdit(history.present, edit);
     if (
+      edit.type !== "calibration" &&
       projection &&
       next.reference &&
       !circleValid(
@@ -202,6 +216,12 @@ function editDocument(edit: Edit) {
     )
       throw new Error("基準円がカメラ前方に収まりません。");
     history = commit(history, next);
+    if (edit.type === "calibration") {
+      referenceStart = null;
+      measureStart = null;
+      pendingGuide = null;
+      cursor = null;
+    }
     showError("");
     refresh();
   } catch (e) {
@@ -691,6 +711,7 @@ async function openFiles(files: FileList | File[]) {
   if (
     resource &&
     (history.present.pins.length ||
+      history.present.calibration !== DEFAULT_CALIBRATION ||
       history.present.groups.length ||
       history.present.reference ||
       history.present.guides.length ||

@@ -67,6 +67,10 @@
               </label>
             </div>
           </fieldset>
+          <label class="checkbox-label menu-item">
+            <input id="show-advanced" type="checkbox" aria-controls="projection-settings">
+            高度な設定を表示する
+          </label>
           <button id="about-trigger" class="menu-item" type="button" commandfor="about" command="show-modal" aria-haspopup="dialog">このアプリについて</button>
         </section>
       </div>
@@ -141,6 +145,39 @@
                   設定時にパネルを閉じる
                 </label>
               </section>
+              <form id="projection-settings" hidden>
+                <fieldset id="projection-fields" disabled>
+                  <legend>投影パラメータ</legend>
+                  <label>
+                    ピッチ角（°）
+                    <input id="pitch-angle" name="pitch" type="number" min="0" max="90" step="any" required aria-describedby="pitch-hint">
+                  </label>
+                  <p id="pitch-hint" class="muted">水平から下向き。0°より大きく90°以下。</p>
+                  <label>
+                    垂直画角（°）
+                    <input id="vertical-fov" name="fov" type="number" min="0" max="180" step="any" required aria-describedby="fov-hint">
+                  </label>
+                  <p id="fov-hint" class="muted">描画領域の高さに対応。0°より大きく180°未満。</p>
+                  <label>
+                    ロール角（°）
+                    <input id="roll-angle" name="roll" type="number" step="any" required aria-describedby="roll-hint">
+                  </label>
+                  <p id="roll-hint" class="muted">正の値で消失線が右下がりになります。</p>
+                  <div class="endpoint-fields">
+                    <label>
+                      主点 X
+                      <input id="principal-x" name="principal-x" type="number" min="0" max="1" step="any" required aria-describedby="principal-hint">
+                    </label>
+                    <label>
+                      主点 Y
+                      <input id="principal-y" name="principal-y" type="number" min="0" max="1" step="any" required aria-describedby="principal-hint">
+                    </label>
+                  </div>
+                  <p id="principal-hint" class="muted">描画領域内の比率（0〜1）。左上が (0, 0)、中央が (0.5, 0.5)。</p>
+                  <p class="muted">適用後もピンの画像上の位置を保ちます。基準円の形が変わるため、必要に応じて合わせ直してください。</p>
+                  <button type="submit" class="wide">投影設定を適用</button>
+                </fieldset>
+              </form>
             </div>
           </details>
           <details id="analysis-panel" class="inspector" open>

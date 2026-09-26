@@ -197,6 +197,19 @@ try {
       );
       const selectedTheme = () =>
         page.locator('input[name="theme"]:checked').inputValue();
+      assert(!(await page.locator("#show-advanced").isChecked()));
+      assert(!(await page.locator("#projection-settings").isVisible()));
+      assert(
+        (
+          await page.locator("#reference-panel summary").textContent()
+        )?.includes("基準パネル"),
+      );
+      await page.locator("#menu-trigger").click();
+      await page.locator("#show-advanced").check();
+      assert(await page.locator("#projection-settings").isVisible());
+      assert(await page.locator("#pitch-angle").isDisabled());
+      await page.locator("#show-advanced").uncheck();
+      await page.keyboard.press("Escape");
       const scheme = () =>
         page.locator("html").evaluate((el) => getComputedStyle(el).colorScheme);
       for (const system of ["light", "dark"] as const) {
@@ -350,6 +363,74 @@ try {
       );
       const baselineDistance = await measurement.textContent();
       assert(baselineDistance && baselineDistance !== "距離スケール未設定");
+      await page.locator("#menu-trigger").click();
+      await page.locator("#show-advanced").check();
+      await page.keyboard.press("Escape");
+      const initialPin = await circlePosition(page, pinKeys[0]);
+      const initialPng = await png(page);
+      for (const [id, value] of [
+        ["pitch-angle", "35"],
+        ["vertical-fov", "12"],
+        ["roll-angle", "7"],
+        ["principal-x", "0.48"],
+        ["principal-y", "0.55"],
+      ])
+        await page.locator(`#${id}`).fill(value);
+      await page.locator("#export").focus();
+      await page.locator("#fit").click();
+      assert.equal(
+        await page.locator("#pitch-angle").inputValue(),
+        "35",
+        "Viewport updates must preserve unapplied settings",
+      );
+      await page.locator("#projection-settings button").click();
+      assert(!(await page.locator("#error").isVisible()));
+      const changedDistance = await measurement.textContent();
+      assert.notEqual(changedDistance, baselineDistance);
+      const adjustedPin = await circlePosition(page, pinKeys[0]);
+      assert(
+        Math.hypot(adjustedPin.x - initialPin.x, adjustedPin.y - initialPin.y) <
+          0.01,
+      );
+      const adjustedPng = await png(page);
+      assert(!adjustedPng.equals(initialPng));
+      await page.locator("#undo").click();
+      assert.equal(await page.locator("#pitch-angle").inputValue(), "25.2");
+      assert.equal(await measurement.textContent(), baselineDistance);
+      assert((await png(page)).equals(initialPng));
+      await page.locator("#redo").click();
+      assert.equal(await page.locator("#pitch-angle").inputValue(), "35");
+      assert.equal(await measurement.textContent(), changedDistance);
+      assert((await png(page)).equals(adjustedPng));
+      await page.locator("#pitch-angle").fill("0");
+      await page.locator("#projection-settings button").click();
+      assert(await page.locator("#error").isVisible());
+      assert.equal(await measurement.textContent(), changedDistance);
+      await page.locator("#pitch-angle").fill("35");
+      await page.locator("#projection-settings button").click();
+      assert(!(await page.locator("#error").isVisible()));
+      await page.screenshot({ path: `test-results/${name}-advanced.png` });
+      await page.setViewportSize({ width: 390, height: 1000 });
+      await page
+        .locator("#projection-settings button")
+        .scrollIntoViewIfNeeded();
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+      await page.screenshot({
+        path: `test-results/${name}-advanced-mobile.png`,
+      });
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.locator("#menu-trigger").click();
+      await page.locator("#show-advanced").uncheck();
+      assert(!(await page.locator("#projection-settings").isVisible()));
+      assert.equal(await measurement.textContent(), changedDistance);
+      await page.keyboard.press("Escape");
+      await page.locator("#undo").click();
+      assert.equal(await measurement.textContent(), baselineDistance);
+      await page.locator("#reference-panel summary").click();
       await page.locator('[data-tool="guide"]').click();
       await clickImage(page, 500, 400);
       await page.mouse.click(4, 4);
@@ -625,6 +706,22 @@ try {
           "Borders are outside the ground plane",
         );
       }
+      await page.locator("#menu-trigger").click();
+      await page.locator("#show-advanced").focus();
+      await page.keyboard.press("Space");
+      await page.keyboard.press("Escape");
+      await page.locator("#pitch-angle").fill("35");
+      await page.locator("#projection-settings button").click();
+      await page.locator("#file").setInputFiles(await imagePayload(page));
+      await page.waitForFunction(
+        () =>
+          (document.getElementById("pitch-angle") as HTMLInputElement).value ===
+          "25.2",
+      );
+      assert(await page.locator("#show-advanced").isChecked());
+      await page.reload();
+      assert(!(await page.locator("#show-advanced").isChecked()));
+      assert(!(await page.locator("#projection-settings").isVisible()));
       assert.deepEqual(errors, []);
       console.log(`${name}: passed`);
     } catch (e) {

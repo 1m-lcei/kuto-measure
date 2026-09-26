@@ -26,6 +26,7 @@ export function createPanels(actions: {
   measure: (a: Endpoint, b: Endpoint) => void;
 }) {
   let doc: AnalysisDocument,
+    projection: Projection | null = null,
     selection: Selection | null = null;
   const name = element<HTMLInputElement>("object-name"),
     group = element<HTMLSelectElement>("pin-group"),
@@ -44,6 +45,52 @@ export function createPanels(actions: {
     if (!input.value.trim()) throw new Error("半径を入力してください。");
     return gameDistance(Number(input.value));
   };
+  const advanced = element<HTMLInputElement>("show-advanced");
+  const projectionForm = element<HTMLFormElement>("projection-settings");
+  const pitch = element<HTMLInputElement>("pitch-angle"),
+    fov = element<HTMLInputElement>("vertical-fov"),
+    roll = element<HTMLInputElement>("roll-angle"),
+    principalX = element<HTMLInputElement>("principal-x"),
+    principalY = element<HTMLInputElement>("principal-y");
+  advanced.checked = false;
+  advanced.addEventListener("change", () => {
+    projectionForm.hidden = !advanced.checked;
+    if (advanced.checked)
+      element<HTMLDetailsElement>("reference-panel").open = true;
+  });
+  projectionForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const currentProjection = projection;
+    if (!currentProjection) return;
+    const elevationDegrees = pitch.valueAsNumber;
+    const verticalFovDegrees = fov.valueAsNumber;
+    if (
+      elevationDegrees <= 0 ||
+      verticalFovDegrees <= 0 ||
+      verticalFovDegrees >= 180
+    ) {
+      actions.error(
+        "ピッチ角は0°より大きく90°以下、垂直画角は0°より大きく180°未満で入力してください。",
+      );
+      return;
+    }
+    safely(() =>
+      actions.edit({
+        type: "calibration",
+        value: {
+          elevationDegrees,
+          verticalFovDegrees,
+          rollDegrees: roll.valueAsNumber,
+          principalPoint: {
+            x: principalX.valueAsNumber,
+            y: principalY.valueAsNumber,
+          },
+        },
+        size: currentProjection.size,
+        renderArea: currentProjection.renderArea,
+      }),
+    );
+  });
   name.addEventListener("change", () =>
     safely(() => {
       if (selection?.kind === "pin") {
@@ -174,7 +221,21 @@ export function createPanels(actions: {
       p: Projection | null,
       hasImage: boolean,
     ) {
+      const calibrationChanged =
+        doc?.calibration !== history.present.calibration ||
+        projection?.size !== p?.size;
       doc = history.present;
+      projection = p;
+      element<HTMLFieldSetElement>("projection-fields").disabled = !p;
+      if (calibrationChanged)
+        for (const [input, value] of [
+          [pitch, doc.calibration.elevationDegrees],
+          [fov, doc.calibration.verticalFovDegrees],
+          [roll, doc.calibration.rollDegrees],
+          [principalX, doc.calibration.principalPoint.x],
+          [principalY, doc.calibration.principalPoint.y],
+        ] as const)
+          input.value = String(value);
       selection = nextSelection;
       element<HTMLButtonElement>("undo").disabled = !history.past.length;
       element<HTMLButtonElement>("redo").disabled = !history.future.length;
