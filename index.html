@@ -50,7 +50,7 @@
           <svg aria-hidden="true"><use href="/icons.svg#menu" /></svg>
         </button>
         <section id="header-menu" popover="auto" aria-label="メニュー">
-          <fieldset class="theme-settings">
+          <fieldset class="theme-settings menu-section">
             <legend>テーマ</legend>
             <div class="theme-options">
               <label>
@@ -67,10 +67,12 @@
               </label>
             </div>
           </fieldset>
-          <label class="checkbox-label menu-item">
-            <input id="show-advanced" type="checkbox" aria-controls="projection-settings">
-            高度な設定を表示する
-          </label>
+          <div class="menu-section">
+            <label class="menu-item">
+              高度な設定を表示
+              <input id="show-advanced" type="checkbox" aria-controls="projection-settings">
+            </label>
+          </div>
           <button id="about-trigger" class="menu-item" type="button" commandfor="about" command="show-modal" aria-haspopup="dialog">このアプリについて</button>
         </section>
       </div>

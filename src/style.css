@@ -854,17 +854,20 @@
     box-shadow: 0 0.5rem 2rem #0002;
     font-size: 0.85rem;
   }
-  .theme-settings {
+  .menu-section {
     padding: 0.25rem 0 0.5rem;
-    margin-block-end: 0.25rem;
+    margin: 0 0 0.25rem;
     border: 0;
     border-block-end: 1px solid var(--border);
+  }
+  .theme-settings legend {
+    padding-inline: 12px;
   }
   .theme-options {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     overflow: hidden;
-    margin: 0 4px;
+    margin: 0 12px;
     border: 1px solid var(--border);
     border-radius: 0.35rem;
     corner-shape: squircle;
@@ -910,10 +913,30 @@
     }
   }
   .menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     inline-size: 100%;
+    min-height: 36px;
+    margin: 0;
+    padding: 7px 12px;
     border: 0;
+    border-radius: 7px;
     background: transparent;
+    font-size: 12px;
+    font-weight: 400;
     text-align: start;
+    cursor: pointer;
+  }
+  .menu-item input {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+  }
+  label.menu-item:hover {
+    background: var(--soft);
   }
 }
 
