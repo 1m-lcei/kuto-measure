@@ -365,7 +365,8 @@
   }
   .history-tools button {
     font-size: 20px;
-    width: 38px;
+    inline-size: 38px;
+    block-size: 38px;
     padding: 3px;
   }
   .zoom-tools button {
@@ -373,6 +374,9 @@
     min-height: 32px;
     block-size: 32px;
     padding: 4px 8px;
+  }
+  .zoom-tools .icon-button {
+    inline-size: 32px;
   }
   #zoom {
     min-width: 42px;
@@ -799,6 +803,7 @@
     flex: none;
     inline-size: 2.5rem;
     block-size: 2.5rem;
+    min-height: 0;
     padding: 0.5rem;
   }
   .header-actions > .icon-button {

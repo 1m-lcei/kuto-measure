@@ -153,6 +153,15 @@ try {
           [32, 32, 32, 32],
           `Zoom button heights differ at ${width}px`,
         );
+        assert(
+          await page.locator(".icon-button").evaluateAll((buttons) =>
+            buttons.every((button) => {
+              const box = button.getBoundingClientRect();
+              return box.width === box.height;
+            }),
+          ),
+          `Icon buttons must be square at ${width}px`,
+        );
         await page.waitForFunction(() => {
           const header = document.getElementById("header");
           return (
