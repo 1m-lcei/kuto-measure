@@ -370,7 +370,8 @@
   }
   .zoom-tools button {
     font-size: 11px;
-    min-height: 29px;
+    min-height: 32px;
+    block-size: 32px;
     padding: 4px 8px;
   }
   #zoom {

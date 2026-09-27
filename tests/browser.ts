@@ -144,6 +144,15 @@ try {
       for (const width of [1440, 780, 779, 390, 320, 1440]) {
         await page.locator("#theme-toggle").focus();
         await page.setViewportSize({ width, height: 1000 });
+        assert.deepEqual(
+          await page
+            .locator(".zoom-tools button")
+            .evaluateAll((buttons) =>
+              buttons.map((button) => button.getBoundingClientRect().height),
+            ),
+          [32, 32, 32, 32],
+          `Zoom button heights differ at ${width}px`,
+        );
         await page.waitForFunction(() => {
           const header = document.getElementById("header");
           return (
@@ -276,7 +285,7 @@ try {
       );
       assert.equal(
         await page.locator("#image-size").textContent(),
-        "画像 1536 × 709 px（2.166:1）",
+        "画像 1536 × 709 px",
       );
       assert.equal(
         await page.locator("#game-size").textContent(),
@@ -691,7 +700,7 @@ try {
         );
         assert.equal(
           await page.locator("#image-size").textContent(),
-          "画像 1920 × 1080 px（1.778:1）",
+          "画像 1920 × 1080 px",
         );
         assert.equal(
           await page.locator("#game-size").textContent(),

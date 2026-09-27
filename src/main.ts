@@ -756,14 +756,12 @@ async function openFiles(files: FileList | File[]) {
       projection = null;
       showError(e);
     }
-    for (const [id, label, size] of [
-      ["image-size", "画像", next],
-      ["game-size", "ゲーム領域", next.renderArea],
-    ] as const) {
-      element(id).textContent =
-        `${label} ${size.width} × ${size.height} px（${(size.width / size.height).toFixed(3)}:1）`;
-      element(id).hidden = false;
-    }
+    element("image-size").textContent =
+      `画像 ${next.width} × ${next.height} px`;
+    const area = next.renderArea;
+    element("game-size").textContent =
+      `ゲーム領域 ${area.width} × ${area.height} px（${(area.width / area.height).toFixed(3)}:1）`;
+    element("game-size").hidden = false;
     view.setImage(next);
     if (previous) URL.revokeObjectURL(previous.url);
     status(
