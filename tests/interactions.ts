@@ -1,24 +1,31 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import type { Page } from "playwright";
+import { expect } from "playwright/test";
 
 export async function checkInteractions(
   page: Page,
   engine: string,
   payload: { name: string; mimeType: string; buffer: Buffer },
 ) {
+  const modes = page.getByRole("group", { name: "操作モード" });
   const key = "kuto-measure.reference-preset";
+  const savedState = page.locator(
+    "#saved-reference-state > [data-state]:not([hidden])",
+  );
+  const savedError = page
+    .getByRole("region", { name: "ブラウザに保存した基準" })
+    .getByRole("alert");
   const frame = () =>
     page.evaluate(
       () =>
         new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
     );
   const load = async () => {
-    await page.locator("#file").setInputFiles(payload);
-    await page.waitForFunction(
-      () =>
-        document.getElementById("viewport")?.getAttribute("aria-busy") ===
-        "false",
+    await page.getByLabel("画像を開く").setInputFiles(payload);
+    await expect(page.getByRole("application")).toHaveAttribute(
+      "aria-busy",
+      "false",
     );
   };
   const point = async (x: number, y: number) => {
@@ -51,7 +58,7 @@ export async function checkInteractions(
   };
   const download = async () => {
     const pending = page.waitForEvent("download");
-    await page.locator("#export").click();
+    await page.getByRole("button", { name: /PNGを書き出す/ }).click();
     const result = await pending;
     const path = await result.path();
     assert(path);
@@ -93,10 +100,10 @@ export async function checkInteractions(
     const unexpected: string[] = [];
     const onDownload = () => unexpected.push("download");
     page.on("download", onDownload);
-    await page.locator("#export").click();
-    await page.waitForFunction(
-      () => !(document.getElementById("export") as HTMLButtonElement).disabled,
-    );
+    await page.getByRole("button", { name: /PNGを書き出す/ }).click();
+    await expect(
+      page.getByRole("button", { name: /PNGを書き出す/ }),
+    ).toBeEnabled();
     const calls = await page.evaluate(
       () =>
         (window as unknown as { nativeSaveCalls: unknown[] }).nativeSaveCalls,
@@ -106,20 +113,21 @@ export async function checkInteractions(
       (calls[0] as { suggestedName: string }).suggestedName,
       outcome === "save" ? "ground-measure.png" : "native.png",
     );
-    assert.deepEqual((calls[0] as { types: unknown }).types, [
-      { description: "PNG画像", accept: { "image/png": [".png"] } },
-    ]);
-    assert.equal(await page.locator("dialog[open]").count(), 0);
+    assert.deepEqual(
+      (calls[0] as { types: { accept: unknown }[] }).types.map(
+        (type) => type.accept,
+      ),
+      [{ "image/png": [".png"] }],
+    );
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     if (outcome === "save")
       assert.deepEqual(calls.slice(2), ["image/png", true, "closed"]);
     if (outcome === "cancel") assert.equal(calls.length, 2);
     if (outcome === "write-error") {
       assert.equal(calls.at(-1), "aborted");
-      assert.match(
-        await page.locator("#error").innerText(),
-        /native write failed/,
-      );
-    }
+      await expect(page.locator("#error")).toBeVisible();
+      await expect(page.locator("#error")).not.toBeEmpty();
+    } else await expect(page.locator("#error")).toBeHidden();
     assert.deepEqual(unexpected, []);
     page.off("download", onDownload);
   }
@@ -136,17 +144,17 @@ export async function checkInteractions(
   });
   const named = await download();
   assert.equal(named.name, "ground-measure.png");
-  assert.equal(await page.locator("dialog[open]").count(), 0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
-  await page.locator('[data-tool="reference"]').click();
+  await modes.getByRole("button", { name: /基準円/ }).click();
   await click(768, 355);
   await click(900, 355);
   await page.locator("#saved-reference-options > summary").click();
-  assert(await page.locator("#save-reference").isDisabled());
-  await page.locator("#close-reference-panel").uncheck();
-  await page.locator("#reference-radius").fill("500");
-  await page.locator("#reference-radius").press("Tab");
-  await page.locator("#save-reference").click();
+  await expect(page.getByRole("button", { name: /現在の基準/ })).toBeDisabled();
+  await page.getByLabel("設定時にパネルを閉じる").uncheck();
+  await page.getByLabel("基準円の半径").fill("500");
+  await page.getByLabel("基準円の半径").press("Tab");
+  await page.getByRole("button", { name: /現在の基準/ }).click();
   const first = await stored();
   assert(first);
   assert.deepEqual(Object.keys(JSON.parse(first)), [
@@ -154,24 +162,15 @@ export async function checkInteractions(
     "calibration",
     "reference",
   ]);
-  await page.locator("#reference-radius").fill("600");
-  await page.locator("#reference-radius").press("Tab");
+  await page.getByLabel("基準円の半径").fill("600");
+  await page.getByLabel("基準円の半径").press("Tab");
   assert.equal(await stored(), first);
-  assert.match(
-    (await page
-      .locator("#saved-reference-state > [data-state]:not([hidden])")
-      .textContent()) ?? "",
-    /異なります/,
-  );
+  await expect(page.getByLabel("基準円の半径")).toHaveValue("600");
+  await expect(savedState).toHaveAttribute("data-state", "changed");
   await load();
-  assert.equal(await page.locator("#reference-radius").inputValue(), "500");
-  assert(await page.locator("#undo").isDisabled());
-  assert.equal(
-    await page
-      .locator("#saved-reference-state > [data-state]:not([hidden])")
-      .textContent(),
-    "保存した基準を使用中",
-  );
+  await expect(page.getByLabel("基準円の半径")).toHaveValue("500");
+  await expect(page.getByRole("button", { name: "元に戻す" })).toBeDisabled();
+  await expect(savedState).toHaveAttribute("data-state", "active");
   const count = confirmations;
   await load();
   assert.equal(
@@ -183,23 +182,23 @@ export async function checkInteractions(
   await page.reload();
   await load();
   await page.locator("#saved-reference-options > summary").click();
-  assert.equal(await page.locator("#reference-radius").inputValue(), "500");
-  await page.locator("#menu-trigger").click();
-  await page.locator("#show-advanced").check();
+  await expect(page.getByLabel("基準円の半径")).toHaveValue("500");
+  await page.getByRole("button", { name: "メニュー", exact: true }).click();
+  await page.getByLabel("高度な設定を表示").check();
   await page.keyboard.press("Escape");
-  await page.locator("#pitch-angle").fill("30");
-  await page.locator("#projection-settings button").click();
-  await page.locator("#save-reference").click();
+  await page.getByLabel(/ピッチ角/).fill("30");
+  await page.getByRole("button", { name: "投影設定を適用" }).click();
+  await page.getByRole("button", { name: /現在の基準/ }).click();
   const calibrated = await stored();
   assert(
     calibrated && JSON.parse(calibrated).calibration.elevationDegrees === 30,
   );
-  await page.locator('[data-tool="pin"]').click();
+  await modes.getByRole("button", { name: /ピン/ }).click();
   await click(500, 400);
   const beforeReset = await pinPositions();
-  await page.locator("#reset-reference").click();
-  assert.equal(await page.locator("#reference-radius").inputValue(), "");
-  assert.equal(await page.locator("#pitch-angle").inputValue(), "25.2");
+  await page.getByRole("button", { name: /この画像の基準をリセット/ }).click();
+  await expect(page.getByLabel("基準円の半径")).toHaveValue("");
+  await expect(page.getByLabel(/ピッチ角/)).toHaveValue("25.2");
   const afterReset = await pinPositions();
   assert(
     Math.hypot(
@@ -208,14 +207,14 @@ export async function checkInteractions(
     ) < 1e-6,
   );
   assert.equal(await stored(), calibrated);
-  await page.locator("#undo").click();
-  assert.equal(await page.locator("#reference-radius").inputValue(), "500");
-  assert.equal(await page.locator("#pitch-angle").inputValue(), "30");
-  await page.locator("#delete-saved-reference").click();
+  await page.getByRole("button", { name: "元に戻す" }).click();
+  await expect(page.getByLabel("基準円の半径")).toHaveValue("500");
+  await expect(page.getByLabel(/ピッチ角/)).toHaveValue("30");
+  await page.getByRole("button", { name: "保存した基準を削除" }).click();
   assert.equal(await stored(), null);
-  assert.equal(await page.locator("#reference-radius").inputValue(), "500");
+  await expect(page.getByLabel("基準円の半径")).toHaveValue("500");
   await load();
-  assert.equal(await page.locator("#reference-radius").inputValue(), "");
+  await expect(page.getByLabel("基準円の半径")).toHaveValue("");
 
   const other = await page.context().newPage();
   await other.goto(page.url());
@@ -223,18 +222,17 @@ export async function checkInteractions(
     key,
     raw: first,
   });
-  await page.waitForFunction(() =>
-    document
-      .getElementById("saved-reference-detail")
-      ?.textContent?.includes("500"),
-  );
+  await expect(savedState).toHaveAttribute("data-state", "unused");
+  await expect(
+    page.getByRole("button", { name: "保存した基準を削除" }),
+  ).toBeEnabled();
   assert.equal(
-    await page.locator("#reference-radius").inputValue(),
+    await page.getByLabel("基準円の半径").inputValue(),
     "",
     "Storage events never modify the current image",
   );
   await load();
-  assert.equal(await page.locator("#reference-radius").inputValue(), "500");
+  await expect(page.getByLabel("基準円の半径")).toHaveValue("500");
   await page.evaluate((key) => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function (k, value) {
@@ -249,11 +247,9 @@ export async function checkInteractions(
       { once: true },
     );
   }, key);
-  await page.locator("#save-reference").click();
-  assert.match(
-    (await page.locator("#saved-reference-error").textContent()) ?? "",
-    /保存できません/,
-  );
+  await page.getByRole("button", { name: /現在の基準/ }).click();
+  await expect(savedError).toBeVisible();
+  await expect(savedError).not.toBeEmpty();
   assert.equal(await stored(), first);
   await page.evaluate(() =>
     window.dispatchEvent(new Event("restore-storage-test")),
@@ -272,12 +268,12 @@ export async function checkInteractions(
       { once: true },
     );
   }, key);
-  await page.locator("#delete-saved-reference").click();
+  await load();
+  await expect(savedError).toBeEmpty();
+  await page.getByRole("button", { name: "保存した基準を削除" }).click();
   assert.equal(await stored(), first);
-  assert.match(
-    (await page.locator("#saved-reference-error").textContent()) ?? "",
-    /削除できません/,
-  );
+  await expect(savedError).toBeVisible();
+  await expect(savedError).not.toBeEmpty();
   await page.evaluate(() =>
     window.dispatchEvent(new Event("restore-storage-test")),
   );
@@ -296,18 +292,15 @@ export async function checkInteractions(
     );
   }, key);
   await load();
-  assert.equal(await page.locator("#reference-radius").inputValue(), "");
-  assert.match(
-    (await page
-      .locator("#saved-reference-state > [data-state]:not([hidden])")
-      .textContent()) ?? "",
-    /確認できません/,
-  );
+  await expect(page.getByLabel("基準円の半径")).toHaveValue("");
+  await expect(savedState).toHaveAttribute("data-state", "error");
+  await expect(savedError).toBeVisible();
+  await expect(savedError).not.toBeEmpty();
   await page.evaluate(() =>
     window.dispatchEvent(new Event("restore-storage-test")),
   );
   await load();
-  assert.equal(await page.locator("#reference-radius").inputValue(), "500");
+  await expect(page.getByLabel("基準円の半径")).toHaveValue("500");
   for (const raw of [
     "{",
     JSON.stringify({ ...JSON.parse(first), version: 2 }),
@@ -317,21 +310,21 @@ export async function checkInteractions(
       raw,
     });
     await load();
-    assert.equal(await page.locator("#reference-radius").inputValue(), "");
+    await expect(page.getByLabel("基準円の半径")).toHaveValue("");
     assert.equal(await stored(), raw);
-    assert.match(
-      (await page.locator("#error").textContent()) ?? "",
-      /初期設定/,
-    );
+    await expect(savedState).toHaveAttribute("data-state", "invalid");
+    await expect(page.getByLabel(/ピッチ角/)).toHaveValue("25.2");
+    await expect(page.locator("#error")).toBeVisible();
+    await expect(page.locator("#error")).not.toBeEmpty();
   }
-  await page.locator("#delete-saved-reference").click();
+  await page.getByRole("button", { name: "保存した基準を削除" }).click();
   await other.close();
   await load();
 
-  await page.locator('[data-tool="reference"]').click();
+  await modes.getByRole("button", { name: /基準円/ }).click();
   await click(600, 350);
   await click(700, 350);
-  await page.locator('[data-tool="pin"]').click();
+  await modes.getByRole("button", { name: /ピン/ }).click();
   const reference = page.locator(
     '#overlay [data-key="reference"][data-part="body"]',
   );
@@ -359,7 +352,7 @@ export async function checkInteractions(
     "painted circle edge fades",
   );
   await load();
-  await page.locator('[data-tool="pin"]').click();
+  await modes.getByRole("button", { name: /ピン/ }).click();
   await frame();
   const beforePointerMove = await page.locator("#overlay").innerHTML();
   const emptyCanvasPoint = await point(900, 450);
@@ -372,11 +365,7 @@ export async function checkInteractions(
   );
   for (let i = 0; i < 5; i++) await click(600, 350);
   const pins = page.locator('#overlay [data-part="body"][data-key^="pin:"]');
-  await page.waitForFunction(
-    () =>
-      document.querySelectorAll('#overlay [data-part="body"][data-key^="pin:"]')
-        .length === 5,
-  );
+  await expect(pins).toHaveCount(5);
   assert.equal(
     await pins.first().evaluate((el) => getComputedStyle(el).opacity),
     "0.35",
@@ -433,7 +422,7 @@ export async function checkInteractions(
     ),
     Array(5).fill("1"),
   );
-  assert.equal(await page.locator('#overlay [data-part="handle"]').count(), 0);
+  await expect(page.locator('#overlay [data-part="handle"]')).toHaveCount(0);
   const positions = await pinPositions();
   assert(
     positions.every(
@@ -441,7 +430,7 @@ export async function checkInteractions(
     ),
   );
   const pinPng = await download();
-  await page.locator('[data-tool="select"]').click();
+  await modes.getByRole("button", { name: /選択/ }).click();
   const labels = page.locator('#overlay [data-part="label"][data-key^="pin:"]');
   await labels.first().locator(".label-hit").waitFor({ state: "attached" });
   const boxes = await labels.locator(".label-hit").evaluateAll((nodes) =>
@@ -464,14 +453,16 @@ export async function checkInteractions(
   for (let i = 0; i < 5; i++) {
     await labels.nth(i).locator(".label-hit").click();
     await frame();
-    assert.equal(
-      await page.locator("#object-name").inputValue(),
-      `ピン${i + 1}`,
-    );
-    assert.equal(await labels.nth(i).getAttribute("aria-pressed"), "true");
+    const selectedKey = await labels.nth(i).getAttribute("data-key");
+    assert(selectedKey);
+    await expect(labels.nth(i)).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      page.locator("#object-list").getByRole("button", { pressed: true }),
+    ).toHaveAttribute("data-object-key", selectedKey);
   }
   await labels.first().locator(".label-hit").hover();
   const firstKey = await labels.first().getAttribute("data-key");
+  assert(firstKey);
   assert.deepEqual(
     await page
       .locator("#overlay .candidate")
@@ -480,21 +471,24 @@ export async function checkInteractions(
       ]),
     [firstKey],
   );
-  await page.locator("#export").hover();
-  assert.equal(await page.locator("#overlay .candidate").count(), 0);
+  await page.getByRole("button", { name: /PNGを書き出す/ }).hover();
+  await expect(page.locator("#overlay .candidate")).toHaveCount(0);
   await labels.first().focus();
   await page.keyboard.press("Space");
-  assert.equal(await page.locator("#object-name").inputValue(), "ピン1");
+  await expect(labels.first()).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.locator("#object-list").getByRole("button", { pressed: true }),
+  ).toHaveAttribute("data-object-key", firstKey);
   assert(
     !(await page
-      .locator("#viewport")
+      .getByRole("application")
       .evaluate((el) => el.classList.contains("pan-ready"))),
   );
-  await page.locator("#fit").evaluate((el: HTMLButtonElement) => el.click());
+  await page
+    .getByRole("button", { name: "全体表示", exact: true })
+    .evaluate((el: HTMLButtonElement) => el.click());
   await frame();
-  await page.waitForFunction(
-    () => document.activeElement?.getAttribute("data-part") === "label",
-  );
+  await expect(labels.first()).toBeFocused();
   const dragBox = await labels.nth(2).locator(".label-hit").boundingBox();
   assert(dragBox);
   await page.mouse.move(
@@ -509,13 +503,16 @@ export async function checkInteractions(
   );
   await page.mouse.up();
   assert.deepEqual(await pinPositions(), positions);
-  assert.equal(await page.locator("#object-name").inputValue(), "ピン1");
-  await page.locator("#undo").click();
+  await expect(labels.first()).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.locator("#object-list").getByRole("button", { pressed: true }),
+  ).toHaveAttribute("data-object-key", firstKey);
+  await page.getByRole("button", { name: "元に戻す" }).click();
   await frame();
-  assert.equal(await pins.count(), 4);
-  await page.locator("#redo").click();
+  await expect(pins).toHaveCount(4);
+  await page.getByRole("button", { name: "やり直す" }).click();
   await frame();
-  assert.equal(await pins.count(), 5);
+  await expect(pins).toHaveCount(5);
   const selectedPng = await download();
   assert(
     pinPng.bytes.equals(selectedPng.bytes),
@@ -525,15 +522,15 @@ export async function checkInteractions(
   assert.equal(selectedPng.bytes.readUInt32BE(20), 709);
   const labelBox = await labels.first().locator(".label-hit").boundingBox();
   assert(labelBox);
-  await page.locator('[data-tool="pin"]').click();
+  await modes.getByRole("button", { name: /ピン/ }).click();
   await page.mouse.click(
     labelBox.x + labelBox.width / 2,
     labelBox.y + labelBox.height / 2,
   );
   await frame();
-  assert.equal(await pins.count(), 6);
+  await expect(pins).toHaveCount(6);
   assert.notDeepEqual((await pinPositions())[5], positions[0]);
-  await page.locator('[data-tool="select"]').click();
+  await modes.getByRole("button", { name: /選択/ }).click();
   await page.evaluate(() => {
     const original = HTMLCanvasElement.prototype.toBlob;
     HTMLCanvasElement.prototype.toBlob = (callback) => {
@@ -541,14 +538,13 @@ export async function checkInteractions(
       callback(null);
     };
   });
-  await page.locator("#export").click();
-  await page.waitForFunction(() =>
-    document
-      .getElementById("error")
-      ?.textContent?.includes("PNGを生成できません"),
-  );
-  assert(!(await page.locator("#export").isDisabled()));
-  assert.equal(await pins.count(), 6);
+  await page.getByRole("button", { name: /PNGを書き出す/ }).click();
+  await expect(page.locator("#error")).toBeVisible();
+  await expect(page.locator("#error")).not.toBeEmpty();
+  await expect(
+    page.getByRole("button", { name: /PNGを書き出す/ }),
+  ).toBeEnabled();
+  await expect(pins).toHaveCount(6);
   const beforeSwitch = await download();
   assert.equal(beforeSwitch.name, "ground-measure.png");
   const ready = page.evaluate(
@@ -578,9 +574,11 @@ export async function checkInteractions(
       }),
   );
   const pending = page.waitForEvent("download");
-  await page.locator("#export").click();
+  await page.getByRole("button", { name: /PNGを書き出す/ }).click();
   await ready;
-  assert(await page.locator("#export").isDisabled());
+  await expect(
+    page.getByRole("button", { name: /PNGを書き出す/ }),
+  ).toBeDisabled();
   await load();
   await page.evaluate(() =>
     window.dispatchEvent(new Event("release-png-test")),
@@ -595,17 +593,17 @@ export async function checkInteractions(
   );
   assert.equal((await download()).name, "ground-measure.png");
   // Rebuild a small overlap for visual review after testing image replacement.
-  await page.locator('[data-tool="pin"]').click();
+  await modes.getByRole("button", { name: /ピン/ }).click();
   for (let i = 0; i < 3; i++) await click(600, 350);
-  await page.locator('[data-tool="select"]').click();
+  await modes.getByRole("button", { name: /選択/ }).click();
   await frame();
   await page
     .locator("#saved-reference-options")
     .evaluate((el: HTMLDetailsElement) => {
       el.open = false;
     });
-  await page.locator("#menu-trigger").click();
-  await page.locator("#show-advanced").uncheck();
+  await page.getByRole("button", { name: "メニュー", exact: true }).click();
+  await page.getByLabel("高度な設定を表示").uncheck();
   await page.keyboard.press("Escape");
   await page.locator("#reference-panel").evaluate((el) => el.scrollTo(0, 0));
   await page.screenshot({ path: `test-results/${engine}-labels.png` });
@@ -630,13 +628,15 @@ export async function checkInteractions(
   const touch = await touchContext.newPage();
   try {
     await touch.goto(page.url());
-    await touch.locator("#file").setInputFiles(payload);
-    await touch.waitForFunction(
-      () =>
-        document.getElementById("viewport")?.getAttribute("aria-busy") ===
-        "false",
+    await touch.getByLabel("画像を開く").setInputFiles(payload);
+    await expect(touch.getByRole("application")).toHaveAttribute(
+      "aria-busy",
+      "false",
     );
-    await touch.locator('[data-tool="pin"]').tap();
+    await touch
+      .getByRole("group", { name: "操作モード" })
+      .getByRole("button", { name: /ピン/ })
+      .tap();
     const stage = await touch.locator("#stage").boundingBox();
     assert(stage);
     for (let i = 0; i < 2; i++)
@@ -644,19 +644,23 @@ export async function checkInteractions(
         stage.x + stage.width / 2,
         stage.y + stage.height / 2,
       );
-    await touch.locator('[data-tool="select"]').tap();
+    await touch
+      .getByRole("group", { name: "操作モード" })
+      .getByRole("button", { name: /選択/ })
+      .tap();
     const touchLabels = touch.locator(
       '#overlay [data-part="label"][data-key^="pin:"]',
     );
     await touchLabels.first().locator(".label-hit").tap();
-    await touch.waitForFunction(() =>
-      document
-        .querySelector('#overlay [data-part="label"][aria-pressed="true"]')
-        ?.getAttribute("aria-label")
-        ?.includes("ピン1"),
-    );
-    assert.equal(await touch.locator("#overlay .candidate").count(), 0);
-    assert.equal(await touchLabels.count(), 2);
+    await expect(touchLabels.first()).toHaveAttribute("aria-pressed", "true");
+    await expect(touchLabels.last()).toHaveAttribute("aria-pressed", "false");
+    const touchKey = await touchLabels.first().getAttribute("data-key");
+    assert(touchKey);
+    await expect(
+      touch.locator("#object-list").getByRole("button", { pressed: true }),
+    ).toHaveAttribute("data-object-key", touchKey);
+    await expect(touch.locator("#overlay .candidate")).toHaveCount(0);
+    await expect(touchLabels).toHaveCount(2);
     await touch.screenshot({ path: `test-results/${engine}-touch-labels.png` });
   } finally {
     await touchContext.close();

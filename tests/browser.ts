@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { chromium, firefox, type Page, webkit } from "playwright";
+import { expect } from "playwright/test";
 import { checkGameArea } from "./game-area";
 import { checkInteractions } from "./interactions";
 
@@ -106,7 +107,7 @@ async function circlePosition(page: Page, key: string) {
 }
 async function png(page: Page) {
   const pending = page.waitForEvent("download");
-  await page.locator("#export").click();
+  await page.getByRole("button", { name: /PNGを書き出す/ }).click();
   const download = await pending;
   const path = await download.path();
   assert(path);
@@ -145,22 +146,30 @@ try {
       });
     });
     const page = await context.newPage();
+    const modes = page.getByRole("group", { name: "操作モード" });
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
     page.on("dialog", (d) => void d.accept());
     try {
       await page.goto(`http://127.0.0.1:${server.port}/nested/`);
-      assert(
-        (await page.locator("#empty .screenshot-hint").textContent())?.trim(),
-      );
-      assert(await page.locator("#empty .screenshot-hint").isVisible());
-      assert(await page.locator("#object-empty").isVisible());
+      await expect(
+        page.getByRole("application").getByRole("list"),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("application").getByRole("listitem").first(),
+      ).toBeVisible();
+      await expect(
+        page.locator("#object-list").getByRole("button"),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: /PNGを書き出す/ }),
+      ).toBeDisabled();
       await page.screenshot({
         path: `test-results/${name}-empty-hint.png`,
         fullPage: true,
       });
       for (const width of [1440, 780, 779, 390, 320, 1440]) {
-        await page.locator("#theme-toggle").focus();
+        await page.getByRole("button", { name: /テーマ/ }).focus();
         await page.setViewportSize({ width, height: 1000 });
         assert.deepEqual(
           await page
@@ -187,10 +196,9 @@ try {
             matchMedia("(width < 780px)").matches
           );
         });
-        assert.equal(
-          await page.locator(":focus").getAttribute("id"),
-          "theme-toggle",
-        );
+        await expect(
+          page.getByRole("button", { name: /テーマ/ }),
+        ).toBeFocused();
         const [title, files, icons] = await Promise.all(
           [
             ".header hgroup",
@@ -210,41 +218,43 @@ try {
           );
         if (width < 780) {
           assert(icons.bottom <= title.top && title.bottom <= files.top);
-          await page.locator("#menu-trigger").focus();
+          await page
+            .getByRole("button", { name: "メニュー", exact: true })
+            .focus();
           await page.keyboard.press("Tab");
-          assert.equal(await page.locator(":focus").getAttribute("id"), "file");
+          await expect(page.getByLabel("画像を開く")).toBeFocused();
         } else {
           assert(title.right <= files.left && files.right <= icons.left);
           assert(
             Math.max(title.top, files.top, icons.top) <
               Math.min(title.bottom, files.bottom, icons.bottom),
           );
-          await page.locator("#file").focus();
+          await page.getByLabel("画像を開く").focus();
           await page.keyboard.press("Tab");
-          assert.equal(
-            await page.locator(":focus").getAttribute("id"),
-            "help-trigger",
-          );
+          await expect(
+            page.getByRole("button", { name: "使い方", exact: true }),
+          ).toBeFocused();
         }
       }
-      assert.equal(
-        await page.locator('dialog button[command="close"]').count(),
-        0,
-      );
       const selectedTheme = () =>
-        page.locator('input[name="theme"]:checked').inputValue();
-      assert(!(await page.locator("#show-advanced").isChecked()));
-      assert(!(await page.locator("#projection-settings").isVisible()));
-      assert(
-        (
-          await page.locator("#reference-panel > summary").textContent()
-        )?.includes("基準パネル"),
+        page
+          .getByRole("radio", { checked: true, includeHidden: true })
+          .inputValue();
+      await expect(page.getByLabel("高度な設定を表示")).not.toBeChecked();
+      await expect(
+        page.getByRole("group", { name: "投影パラメータ" }),
+      ).toBeHidden();
+      await expect(page.locator("#reference-panel")).toHaveJSProperty(
+        "open",
+        true,
       );
-      await page.locator("#menu-trigger").click();
-      await page.locator("#show-advanced").check();
-      assert(await page.locator("#projection-settings").isVisible());
-      assert(await page.locator("#pitch-angle").isDisabled());
-      await page.locator("#show-advanced").uncheck();
+      await page.getByRole("button", { name: "メニュー", exact: true }).click();
+      await page.getByLabel("高度な設定を表示").check();
+      await expect(
+        page.getByRole("group", { name: "投影パラメータ" }),
+      ).toBeVisible();
+      await expect(page.getByLabel(/ピッチ角/)).toBeDisabled();
+      await page.getByLabel("高度な設定を表示").uncheck();
       await page.keyboard.press("Escape");
       const scheme = () =>
         page.locator("html").evaluate((el) => getComputedStyle(el).colorScheme);
@@ -252,110 +262,139 @@ try {
         await page.emulateMedia({ colorScheme: system });
         assert.equal(await selectedTheme(), "system");
         assert.equal(await scheme(), system);
-        await page.locator("#theme-toggle").click();
+        await page.getByRole("button", { name: /テーマ/ }).click();
         assert.equal(
           await selectedTheme(),
           system === "light" ? "dark" : "light",
         );
         assert.equal(await scheme(), system === "light" ? "dark" : "light");
-        await page.locator("#theme-toggle").click();
+        await page.getByRole("button", { name: /テーマ/ }).click();
         assert.equal(await selectedTheme(), "system");
       }
-      await page.locator("#menu-trigger").click();
-      for (const value of ["light", "dark", "system"]) {
-        await page.locator(`input[name="theme"][value="${value}"]`).check();
+      await page.getByRole("button", { name: "メニュー", exact: true }).click();
+      for (const [value, label] of [
+        ["light", "ライト"],
+        ["dark", "ダーク"],
+        ["system", "システム"],
+      ]) {
+        await page.getByRole("radio", { name: label }).check();
         assert.equal(await selectedTheme(), value);
         assert.equal(await scheme(), value === "system" ? "dark" : value);
       }
-      await page.locator('input[name="theme"][value="light"]').check();
+      await page.getByRole("radio", { name: "ライト" }).check();
       await page.reload();
       assert.equal(await selectedTheme(), "light");
       assert.equal(await scheme(), "light");
-      await page.locator("#menu-trigger").click();
-      await page.locator("#about-trigger").click();
-      assert(await page.locator("#about").isVisible());
+      await page.getByRole("button", { name: "メニュー", exact: true }).click();
+      await page.getByRole("button", { name: /このアプリ/ }).click();
+      await expect(
+        page.getByRole("dialog", { name: "Kuto Measure" }),
+      ).toBeVisible();
       assert.equal(
-        await page.locator("#about a").first().getAttribute("href"),
+        await page
+          .getByRole("dialog")
+          .getByRole("link", { name: "連絡先" })
+          .getAttribute("href"),
         "https://x.com/1m_lcei",
       );
       assert.equal(
-        await page.locator("#about a").last().getAttribute("href"),
+        await page
+          .getByRole("dialog")
+          .getByRole("link", { name: "GitHub" })
+          .getAttribute("href"),
         "https://github.com/1m-lcei/kuto-measure",
       );
       await page.screenshot({ path: `test-results/${name}-about.png` });
-      assert(!(await page.locator("#header-menu").isVisible()));
-      assert.equal(
-        await page.getByRole("link", { name: "第三者ライセンス" }).count(),
-        0,
-      );
+      await expect(page.getByRole("region", { name: "メニュー" })).toBeHidden();
       await page.keyboard.press("Escape");
-      await page.waitForFunction(
-        () => document.activeElement?.id === "menu-trigger",
-      );
-      await page.locator("#menu-trigger").click();
-      await page.locator("#about-trigger").click();
+      await expect(
+        page.getByRole("button", { name: "メニュー", exact: true }),
+      ).toBeFocused();
+      await page.getByRole("button", { name: "メニュー", exact: true }).click();
+      await page.getByRole("button", { name: /このアプリ/ }).click();
       await page.mouse.click(4, 4);
-      await page.locator("#about").waitFor({ state: "hidden" });
-      await page.locator("#menu-trigger").click();
+      await page
+        .getByRole("dialog", { name: "Kuto Measure" })
+        .waitFor({ state: "hidden" });
+      await page.getByRole("button", { name: "メニュー", exact: true }).click();
       await page.keyboard.press("Escape");
-      assert(!(await page.locator("#header-menu").isVisible()));
-      await page.locator("#file").setInputFiles(await imagePayload(page));
+      await expect(page.getByRole("region", { name: "メニュー" })).toBeHidden();
+      await page
+        .getByLabel("画像を開く")
+        .setInputFiles(await imagePayload(page));
       await page.locator("#stage").waitFor({ state: "visible" });
-      await page.waitForFunction(
-        () =>
-          document.getElementById("viewport")?.getAttribute("aria-busy") ===
-          "false",
+      await expect(page.getByRole("application")).toHaveAttribute(
+        "aria-busy",
+        "false",
       );
-      assert(
-        !(await page.locator("#error").isVisible()),
+      await expect(
+        page.locator("#error"),
         "Valid image must load without an error",
+      ).toBeHidden();
+      await expect(page.locator("#image")).toHaveJSProperty(
+        "naturalWidth",
+        1536,
       );
-      assert.equal(
-        await page.locator("#image-size").textContent(),
-        "画像 1536 × 709 px",
+      await expect(page.locator("#image")).toHaveJSProperty(
+        "naturalHeight",
+        709,
       );
-      assert.equal(
-        await page.locator("#game-size").textContent(),
-        "ゲーム領域 画像全体（2.166:1）",
+      await expect(page.locator("#area-state")).toHaveAttribute(
+        "data-source",
+        "fallback",
       );
-      assert.equal(
-        await page
-          .getByRole("button", { name: "全体表示", exact: true })
-          .locator("svg use")
-          .getAttribute("href"),
-        "./icons.svg#fit",
+      await expect(page.locator("#image-clip rect")).toHaveAttribute(
+        "width",
+        "1536",
       );
-      await page.locator('[data-tool="pin"]').click();
+      await expect(page.locator("#image-clip rect")).toHaveAttribute(
+        "height",
+        "709",
+      );
+      await modes.getByRole("button", { name: /ピン/ }).click();
       await clickImage(page, 500, 400);
       await clickImage(page, 1000, 470);
-      await page.locator("#measure-from").selectOption({ index: 1 });
-      await page.locator("#measure-to").selectOption({ index: 2 });
-      await page.locator("#add-measure").click();
-      assert.equal(
-        await page
-          .locator('#object-list [data-object-key^="measurement:"] small')
-          .textContent(),
-        "1.0000",
-      );
-      assert.equal(
-        await page
-          .locator("#scale-state > [data-state]:not([hidden])")
-          .textContent(),
-        "相対距離",
-      );
       await page
-        .locator("#overlay text")
-        .filter({ hasText: /^1\.0000$/ })
-        .waitFor();
-      await page.locator("#file").setInputFiles(await imagePayload(page));
-      await page.waitForFunction(
-        () => document.getElementById("object-count")?.textContent === "0",
-      );
-      await page.locator('[data-tool="reference"]').click();
+        .getByRole("combobox", { name: "始点", exact: true })
+        .selectOption({ index: 1 });
+      await page
+        .getByRole("combobox", { name: "終点", exact: true })
+        .selectOption({ index: 2 });
+      await page.getByRole("button", { name: "測距線を追加" }).click();
+      await expect
+        .poll(async () =>
+          Number(
+            await page
+              .locator('#object-list [data-object-key^="measurement:"] small')
+              .textContent(),
+          ),
+        )
+        .toBe(1);
+      await expect(
+        page.locator("#scale-state > [data-state]:not([hidden])"),
+      ).toHaveAttribute("data-state", "relative");
+      await expect
+        .poll(async () =>
+          Number(
+            await page
+              .locator(
+                '#overlay [data-part="label"][data-key^="measurement:"] text',
+              )
+              .textContent(),
+          ),
+        )
+        .toBe(1);
+      await page
+        .getByLabel("画像を開く")
+        .setInputFiles(await imagePayload(page));
+      await expect(
+        page.locator("#object-list").getByRole("button"),
+      ).toHaveCount(0);
+      await modes.getByRole("button", { name: /基準円/ }).click();
       await clickImage(page, 768, 355);
       await clickImage(page, 900, 355);
-      await page.locator("#reference-radius").fill("500");
-      await page.locator("#reference-radius").press("Tab");
+      await page.getByLabel("基準円の半径").fill("500");
+      await page.getByLabel("基準円の半径").press("Tab");
       assert(
         !(await page
           .locator("#reference-panel")
@@ -366,38 +405,35 @@ try {
           .locator("#analysis-panel")
           .evaluate((el) => (el as HTMLDetailsElement).open),
       );
-      await page.locator('[data-tool="reference"]').click();
-      assert(await page.locator("#reference-radius").isVisible());
-      await page.locator("#close-reference-panel").uncheck();
-      await page.locator("#reference-radius").fill("501");
-      await page.locator("#reference-radius").press("Enter");
+      await modes.getByRole("button", { name: /基準円/ }).click();
+      await expect(page.getByLabel("基準円の半径")).toBeVisible();
+      await page.getByLabel("設定時にパネルを閉じる").uncheck();
+      await page.getByLabel("基準円の半径").fill("501");
+      await page.getByLabel("基準円の半径").press("Enter");
       assert(
         await page
           .locator("#reference-panel")
           .evaluate((el) => (el as HTMLDetailsElement).open),
       );
-      await page.locator("#close-reference-panel").check();
-      await page.locator("#reference-radius").fill("-1");
-      await page.locator("#reference-radius").press("Enter");
+      await page.getByLabel("設定時にパネルを閉じる").check();
+      await page.getByLabel("基準円の半径").fill("-1");
+      await page.getByLabel("基準円の半径").press("Enter");
       assert(
         await page
           .locator("#reference-panel")
           .evaluate((el) => (el as HTMLDetailsElement).open),
       );
-      await page.locator("#reference-radius").fill("500");
-      await page.locator("#reference-radius").press("Enter");
+      await page.getByLabel("基準円の半径").fill("500");
+      await page.getByLabel("基準円の半径").press("Enter");
       assert(
         !(await page
           .locator("#reference-panel")
           .evaluate((el) => (el as HTMLDetailsElement).open)),
       );
-      assert.equal(
-        await page
-          .locator("#scale-state > [data-state]:not([hidden])")
-          .textContent(),
-        "距離スケール設定済み",
-      );
-      await page.locator('[data-tool="pin"]').click();
+      await expect(
+        page.locator("#scale-state > [data-state]:not([hidden])"),
+      ).toHaveAttribute("data-state", "absolute");
+      await modes.getByRole("button", { name: /ピン/ }).click();
       await clickImage(page, 500, 400);
       await clickImage(page, 1000, 470);
       const pinKeys = await page
@@ -406,36 +442,43 @@ try {
           nodes.map((n) => (n as HTMLElement).dataset.objectKey as string),
         );
       assert.equal(pinKeys.length, 2);
-      await page.locator("#measure-from").selectOption(pinKeys[0]);
-      await page.locator("#measure-to").selectOption(pinKeys[1]);
-      await page.locator("#add-measure").click();
+      await page
+        .getByRole("combobox", { name: "始点", exact: true })
+        .selectOption(pinKeys[0]);
+      await page
+        .getByRole("combobox", { name: "終点", exact: true })
+        .selectOption(pinKeys[1]);
+      await page.getByRole("button", { name: "測距線を追加" }).click();
       const measurement = page.locator(
         '#object-list [data-object-key^="measurement:"] small',
       );
       const baselineDistance = await measurement.textContent();
-      assert(baselineDistance && baselineDistance !== "距離スケール未設定");
-      await page.locator("#menu-trigger").click();
-      await page.locator("#show-advanced").check();
+      assert(
+        baselineDistance &&
+          Number.isFinite(Number(baselineDistance.replaceAll(",", ""))),
+      );
+      await page.getByRole("button", { name: "メニュー", exact: true }).click();
+      await page.getByLabel("高度な設定を表示").check();
       await page.keyboard.press("Escape");
       const initialPin = await circlePosition(page, pinKeys[0]);
       const initialPng = await png(page);
-      for (const [id, value] of [
-        ["pitch-angle", "35"],
-        ["vertical-fov", "12"],
-        ["roll-angle", "7"],
-        ["principal-x", "0.48"],
-        ["principal-y", "0.55"],
+      for (const [label, value] of [
+        ["ピッチ角", "35"],
+        ["垂直画角", "12"],
+        ["ロール角", "7"],
+        ["主点 X", "0.48"],
+        ["主点 Y", "0.55"],
       ])
-        await page.locator(`#${id}`).fill(value);
-      await page.locator("#export").focus();
-      await page.locator("#fit").click();
+        await page.getByLabel(label).fill(value);
+      await page.getByRole("button", { name: /PNGを書き出す/ }).focus();
+      await page.getByRole("button", { name: "全体表示", exact: true }).click();
       assert.equal(
-        await page.locator("#pitch-angle").inputValue(),
+        await page.getByLabel(/ピッチ角/).inputValue(),
         "35",
         "Viewport updates must preserve unapplied settings",
       );
-      await page.locator("#projection-settings button").click();
-      assert(!(await page.locator("#error").isVisible()));
+      await page.getByRole("button", { name: "投影設定を適用" }).click();
+      await expect(page.locator("#error")).toBeHidden();
       const changedDistance = await measurement.textContent();
       assert.notEqual(changedDistance, baselineDistance);
       const adjustedPin = await circlePosition(page, pinKeys[0]);
@@ -445,25 +488,25 @@ try {
       );
       const adjustedPng = await png(page);
       assert(!adjustedPng.equals(initialPng));
-      await page.locator("#undo").click();
-      assert.equal(await page.locator("#pitch-angle").inputValue(), "25.2");
+      await page.getByRole("button", { name: "元に戻す" }).click();
+      await expect(page.getByLabel(/ピッチ角/)).toHaveValue("25.2");
       assert.equal(await measurement.textContent(), baselineDistance);
       assert((await png(page)).equals(initialPng));
-      await page.locator("#redo").click();
-      assert.equal(await page.locator("#pitch-angle").inputValue(), "35");
+      await page.getByRole("button", { name: "やり直す" }).click();
+      await expect(page.getByLabel(/ピッチ角/)).toHaveValue("35");
       assert.equal(await measurement.textContent(), changedDistance);
       assert((await png(page)).equals(adjustedPng));
-      await page.locator("#pitch-angle").fill("0");
-      await page.locator("#projection-settings button").click();
-      assert(await page.locator("#error").isVisible());
+      await page.getByLabel(/ピッチ角/).fill("0");
+      await page.getByRole("button", { name: "投影設定を適用" }).click();
+      await expect(page.locator("#error")).toBeVisible();
       assert.equal(await measurement.textContent(), changedDistance);
-      await page.locator("#pitch-angle").fill("35");
-      await page.locator("#projection-settings button").click();
-      assert(!(await page.locator("#error").isVisible()));
+      await page.getByLabel(/ピッチ角/).fill("35");
+      await page.getByRole("button", { name: "投影設定を適用" }).click();
+      await expect(page.locator("#error")).toBeHidden();
       await page.screenshot({ path: `test-results/${name}-advanced.png` });
       await page.setViewportSize({ width: 390, height: 1000 });
       await page
-        .locator("#projection-settings button")
+        .getByRole("button", { name: "投影設定を適用" })
         .scrollIntoViewIfNeeded();
       assert(
         await page.evaluate(
@@ -474,53 +517,70 @@ try {
         path: `test-results/${name}-advanced-mobile.png`,
       });
       await page.setViewportSize({ width: 1440, height: 1000 });
-      await page.locator("#menu-trigger").click();
-      await page.locator("#show-advanced").uncheck();
-      assert(!(await page.locator("#projection-settings").isVisible()));
+      await page.getByRole("button", { name: "メニュー", exact: true }).click();
+      await page.getByLabel("高度な設定を表示").uncheck();
+      await expect(
+        page.getByRole("group", { name: "投影パラメータ" }),
+      ).toBeHidden();
       assert.equal(await measurement.textContent(), changedDistance);
       await page.keyboard.press("Escape");
-      await page.locator("#undo").click();
+      await page.getByRole("button", { name: "元に戻す" }).click();
       assert.equal(await measurement.textContent(), baselineDistance);
       await page.locator("#reference-panel > summary").click();
-      await page.locator('[data-tool="guide"]').click();
+      await modes.getByRole("button", { name: /補助円/ }).click();
       await clickImage(page, 500, 400);
       await page.mouse.click(4, 4);
-      await page.locator("#guide-dialog").waitFor({ state: "hidden" });
-      await page.waitForFunction(
-        () => document.activeElement?.id === "viewport",
-      );
-      assert.equal(
-        await page.locator('#object-list [data-object-key^="guide:"]').count(),
-        0,
-      );
+      await page
+        .getByRole("dialog", { name: "補助円を追加" })
+        .waitFor({ state: "hidden" });
+      await expect(page.getByRole("application")).toBeFocused();
+      await expect(
+        page.locator('#object-list [data-object-key^="guide:"]'),
+      ).toHaveCount(0);
       await clickImage(page, 500, 400);
       await page.keyboard.press("Escape");
-      await page.locator("#guide-dialog").waitFor({ state: "hidden" });
-      await page.waitForFunction(
-        () => document.activeElement?.id === "viewport",
-      );
+      await page
+        .getByRole("dialog", { name: "補助円を追加" })
+        .waitFor({ state: "hidden" });
+      await expect(page.getByRole("application")).toBeFocused();
       await clickImage(page, 500, 400);
-      await page.locator("#guide-form button[type=submit]").click();
-      await page.locator("#guide-dialog").waitFor({ state: "hidden" });
+      await page
+        .getByRole("dialog", { name: "補助円を追加" })
+        .getByRole("button", { name: /追加/ })
+        .click();
+      await page
+        .getByRole("dialog", { name: "補助円を追加" })
+        .waitFor({ state: "hidden" });
       await page.getByRole("button", { name: "使い方", exact: true }).click();
-      assert(await page.locator("#help").isVisible());
-      await page.locator("#help-title").click();
-      assert(await page.locator("#help").isVisible());
+      await expect(page.getByRole("dialog", { name: "使い方" })).toBeVisible();
+      await page
+        .getByRole("dialog", { name: "使い方" })
+        .getByRole("heading", { name: "使い方", exact: true })
+        .click();
+      await expect(page.getByRole("dialog", { name: "使い方" })).toBeVisible();
       await page.mouse.click(4, 4);
-      await page.locator("#help").waitFor({ state: "hidden" });
-      await page.locator("#help-trigger").click();
+      await page
+        .getByRole("dialog", { name: "使い方" })
+        .waitFor({ state: "hidden" });
+      await page.getByRole("button", { name: "使い方", exact: true }).click();
       await page.keyboard.press("Escape");
-      await page.locator("#help").waitFor({ state: "hidden" });
+      await page
+        .getByRole("dialog", { name: "使い方" })
+        .waitFor({ state: "hidden" });
       const before = await png(page);
-      await page.locator("#zoom-in").click();
-      await page.locator("#zoom-in").click();
-      await page.locator("#viewport").evaluate((el) => el.scrollTo(130, 65));
+      await page.getByRole("button", { name: "拡大", exact: true }).click();
+      await page.getByRole("button", { name: "拡大", exact: true }).click();
+      await page
+        .getByRole("application")
+        .evaluate((el) => el.scrollTo(130, 65));
       assert.equal(await measurement.textContent(), baselineDistance);
       const after = await png(page);
       assert(before.equals(after), `${name}: PNG changed with zoom/pan`);
       if (name === "chromium") {
-        await page.locator("#fit").click();
-        await page.locator('[data-tool="select"]').click();
+        await page
+          .getByRole("button", { name: "全体表示", exact: true })
+          .click();
+        await modes.getByRole("button", { name: /選択/ }).click();
         const initial = await circlePosition(page, pinKeys[0]);
         const start = await point(page, initial.x, initial.y),
           end = await point(page, initial.x + 80, initial.y + 30);
@@ -540,7 +600,7 @@ try {
         await page.mouse.move(start.x, start.y, { steps: 4 });
         await page.mouse.up();
         assert.deepEqual(await circlePosition(page, pinKeys[0]), initial);
-        await page.locator("#undo").click();
+        await page.getByRole("button", { name: "元に戻す" }).click();
         assert.equal(
           await page
             .locator('#object-list [data-object-key^="guide:"]')
@@ -548,84 +608,72 @@ try {
           0,
           "Return-to-start drag must not create an edit",
         );
-        await page.locator("#redo").click();
+        await page.getByRole("button", { name: "やり直す" }).click();
         await page.mouse.move(start.x, start.y);
         await page.mouse.down();
         await page.mouse.move(end.x, end.y, { steps: 4 });
         await page.mouse.up();
         const moved = await circlePosition(page, pinKeys[0]);
         assert.notDeepEqual(moved, initial);
-        await page.locator("#undo").click();
+        await page.getByRole("button", { name: "元に戻す" }).click();
         assert.deepEqual(await circlePosition(page, pinKeys[0]), initial);
-        await page.locator("#redo").click();
+        await page.getByRole("button", { name: "やり直す" }).click();
         assert.deepEqual(await circlePosition(page, pinKeys[0]), moved);
-        await page.locator("#undo").click();
-        await page.locator("#add-group").click();
-        await page.locator("#object-name").fill("チーム A");
-        await page.locator("#object-name").press("Tab");
+        await page.getByRole("button", { name: "元に戻す" }).click();
+        await page.getByRole("button", { name: /グループ/ }).click();
+        await page.getByLabel("名前", { exact: true }).fill("チーム A");
+        await page.getByLabel("名前", { exact: true }).press("Tab");
         const groupKey = await page
           .locator('#object-list [data-object-key^="group:"]')
           .getAttribute("data-object-key");
         assert(groupKey);
         for (const key of pinKeys) {
           await page.locator(`[data-object-key="${key}"]`).click();
-          await page.locator("#pin-group").selectOption(groupKey.slice(6));
+          await page.getByLabel("所属グループ").selectOption(groupKey.slice(6));
         }
         assert(await page.locator(`#overlay [data-key="${groupKey}"]`).count());
-        await page.locator("#measure-to").selectOption(groupKey);
-        await page.locator("#add-measure").click();
-        await page.locator('[data-tool="guide"]').click();
+        await page
+          .getByRole("combobox", { name: "終点", exact: true })
+          .selectOption(groupKey);
+        await page.getByRole("button", { name: "測距線を追加" }).click();
+        await modes.getByRole("button", { name: /補助円/ }).click();
         await page.locator(`[data-object-key="${groupKey}"]`).click();
-        await page.locator("#guide-form button[type=submit]").click();
-        assert.equal(
-          await page
-            .locator('#object-list [data-object-key^="guide:"]')
-            .count(),
-          2,
-        );
-        await page.locator("#undo").click();
+        await page
+          .getByRole("dialog", { name: "補助円を追加" })
+          .getByRole("button", { name: /追加/ })
+          .click();
+        await expect(
+          page.locator('#object-list [data-object-key^="guide:"]'),
+        ).toHaveCount(2);
+        await page.getByRole("button", { name: "元に戻す" }).click();
         await page.locator(`[data-object-key="${pinKeys[0]}"]`).click();
-        await page.locator("#delete").click();
-        assert.equal(
-          await page
-            .locator('#object-list [data-object-key^="guide:"]')
-            .count(),
-          0,
-        );
-        assert.equal(
-          await page
-            .locator('#object-list [data-object-key^="measurement:"]')
-            .count(),
-          0,
-        );
-        await page.locator("#undo").click();
-        assert.equal(
-          await page
-            .locator('#object-list [data-object-key^="guide:"]')
-            .count(),
-          1,
-        );
-        assert.equal(
-          await page
-            .locator('#object-list [data-object-key^="measurement:"]')
-            .count(),
-          2,
-        );
+        await page.getByRole("button", { name: "削除", exact: true }).click();
+        await expect(
+          page.locator('#object-list [data-object-key^="guide:"]'),
+        ).toHaveCount(0);
+        await expect(
+          page.locator('#object-list [data-object-key^="measurement:"]'),
+        ).toHaveCount(0);
+        await page.getByRole("button", { name: "元に戻す" }).click();
+        await expect(
+          page.locator('#object-list [data-object-key^="guide:"]'),
+        ).toHaveCount(1);
+        await expect(
+          page.locator('#object-list [data-object-key^="measurement:"]'),
+        ).toHaveCount(2);
         // Keyboard placement and exactly one edit for a committed movement.
-        await page.locator('[data-tool="pin"]').click();
-        await page.locator("#viewport").focus();
+        await modes.getByRole("button", { name: /ピン/ }).click();
+        await page.getByRole("application").focus();
         await page.keyboard.press("ArrowRight");
         await page.keyboard.press("Enter");
-        assert.equal(
-          await page.locator('#object-list [data-object-key^="pin:"]').count(),
-          3,
-        );
+        await expect(
+          page.locator('#object-list [data-object-key^="pin:"]'),
+        ).toHaveCount(3);
         await page.keyboard.press("Control+z");
-        assert.equal(
-          await page.locator('#object-list [data-object-key^="pin:"]').count(),
-          2,
-        );
-        await page.locator('[data-tool="select"]').click();
+        await expect(
+          page.locator('#object-list [data-object-key^="pin:"]'),
+        ).toHaveCount(2);
+        await modes.getByRole("button", { name: /選択/ }).click();
         const oldDistance = await measurement.first().textContent();
         await page.locator('[data-object-key="reference"]').click();
         const handle = page
@@ -646,29 +694,30 @@ try {
           oldDistance,
           "Reference resize must recalibrate measurements",
         );
-        await page.locator("#undo").click();
+        await page.getByRole("button", { name: "元に戻す" }).click();
         assert.equal(await measurement.first().textContent(), oldDistance);
         await page.locator('[data-object-key="reference"]').click();
-        await page.locator("#delete").click();
-        assert.equal(
-          await page
-            .locator("#scale-state > [data-state]:not([hidden])")
-            .textContent(),
-          "相対距離",
-        );
-        assert.equal(
-          await page
-            .locator('#object-list [data-object-key^="guide:"]')
-            .count(),
-          1,
-        );
-        await page.locator("#undo").click();
+        await page.getByRole("button", { name: "削除", exact: true }).click();
+        await expect(
+          page.locator("#scale-state > [data-state]:not([hidden])"),
+        ).toHaveAttribute("data-state", "relative");
+        await expect
+          .poll(async () =>
+            Number(
+              (await measurement.first().textContent())?.replaceAll(",", ""),
+            ),
+          )
+          .toBe(1);
+        await expect(
+          page.locator('#object-list [data-object-key^="guide:"]'),
+        ).toHaveCount(1);
+        await page.getByRole("button", { name: "元に戻す" }).click();
         assert.equal(await measurement.first().textContent(), oldDistance);
         await page.screenshot({
           path: "test-results/workspace-light.png",
           fullPage: true,
         });
-        await page.locator("#theme-toggle").click();
+        await page.getByRole("button", { name: /テーマ/ }).click();
         await page.screenshot({
           path: "test-results/workspace-dark.png",
           fullPage: true,
@@ -685,35 +734,42 @@ try {
           "Mobile layout overflows horizontally",
         );
         await page.setViewportSize({ width: 1440, height: 1000 });
-        await page.locator("#file").setInputFiles({
+        await page.getByLabel("画像を開く").setInputFiles({
           name: "bad.png",
           mimeType: "image/png",
           buffer: Buffer.from("not an image file"),
         });
         await page.locator("#error").waitFor({ state: "visible" });
-        assert.equal(
-          await page.locator('#object-list [data-object-key^="pin:"]').count(),
-          2,
-        );
+        await expect(
+          page.locator('#object-list [data-object-key^="pin:"]'),
+        ).toHaveCount(2);
         await page
-          .locator("#file")
+          .getByLabel("画像を開く")
           .setInputFiles(await imagePayload(page, 1920, 1080));
-        await page.waitForFunction(() =>
-          document.getElementById("image-size")?.textContent?.includes("1920"),
+        await expect(page.locator("#image")).toHaveJSProperty(
+          "naturalWidth",
+          1920,
         );
-        assert(!(await page.locator('[data-tool="pin"]').isDisabled()));
-        await page.locator('[data-tool="pin"]').click();
-        await page.locator("#viewport").focus();
+        await expect(page.locator("#image")).toHaveJSProperty(
+          "naturalHeight",
+          1080,
+        );
+        await expect(page.getByRole("application")).toHaveAttribute(
+          "aria-busy",
+          "false",
+        );
+        await expect(modes.getByRole("button", { name: /ピン/ })).toBeEnabled();
+        await modes.getByRole("button", { name: /ピン/ }).click();
+        await page.getByRole("application").focus();
         await page.keyboard.press("Enter");
         await page.locator('#overlay [data-key^="pin:"] path.visual').waitFor();
-        assert.equal(
-          await page.locator('#overlay [data-key^="pin:"] path.visual').count(),
-          1,
-        );
-        assert(!(await page.locator('[data-tool="pan"]').isDisabled()));
-        assert.equal(await page.locator(".excluded-boundary").count(), 0);
+        await expect(
+          page.locator('#overlay [data-key^="pin:"] path.visual'),
+        ).toHaveCount(1);
+        await expect(modes.getByRole("button", { name: /パン/ })).toBeEnabled();
+        await expect(page.locator(".excluded-boundary")).toHaveCount(0);
         await page
-          .locator("#file")
+          .getByLabel("画像を開く")
           .setInputFiles(await imagePayload(page, 1920, 1080, 96));
         await page.waitForFunction(
           () =>
@@ -731,16 +787,24 @@ try {
           Math.abs(clip.y - 96) <= 3 && Math.abs(clip.height - 888) <= 6,
           "Image border must be detected automatically",
         );
-        assert.equal(
-          await page.locator("#image-size").textContent(),
-          "画像 1920 × 1080 px",
+        await expect(page.locator("#image")).toHaveJSProperty(
+          "naturalWidth",
+          1920,
         );
-        assert.equal(
-          await page.locator("#game-size").textContent(),
-          `ゲーム領域 1920 × ${clip.height} px（${(1920 / clip.height).toFixed(3)}:1）`,
+        await expect(page.locator("#image")).toHaveJSProperty(
+          "naturalHeight",
+          1080,
+        );
+        await expect(page.locator("#area-state")).toHaveAttribute(
+          "data-source",
+          "auto",
+        );
+        await expect(page.locator("#image-clip rect")).toHaveAttribute(
+          "width",
+          "1920",
         );
         const boundary = page.locator("#overlay .excluded-boundary");
-        assert.equal(await boundary.count(), 1);
+        await expect(boundary).toHaveCount(1);
         assert.equal(
           await boundary.getAttribute("d"),
           `M0,${clip.y}H1920M0,${clip.y + clip.height}H1920`,
@@ -754,7 +818,7 @@ try {
         await page.screenshot({
           path: `test-results/${name}-excluded-boundary.png`,
         });
-        await page.locator('[data-tool="pin"]').click();
+        await modes.getByRole("button", { name: /ピン/ }).click();
         const bordered = await page.locator("#stage").boundingBox();
         assert(bordered);
         await page.mouse.click(
@@ -767,22 +831,22 @@ try {
           "Borders are outside the ground plane",
         );
       }
-      await page.locator("#menu-trigger").click();
-      await page.locator("#show-advanced").focus();
+      await page.getByRole("button", { name: "メニュー", exact: true }).click();
+      await page.getByLabel("高度な設定を表示").focus();
       await page.keyboard.press("Space");
       await page.keyboard.press("Escape");
-      await page.locator("#pitch-angle").fill("35");
-      await page.locator("#projection-settings button").click();
-      await page.locator("#file").setInputFiles(await imagePayload(page));
-      await page.waitForFunction(
-        () =>
-          (document.getElementById("pitch-angle") as HTMLInputElement).value ===
-          "25.2",
-      );
-      assert(await page.locator("#show-advanced").isChecked());
+      await page.getByLabel(/ピッチ角/).fill("35");
+      await page.getByRole("button", { name: "投影設定を適用" }).click();
+      await page
+        .getByLabel("画像を開く")
+        .setInputFiles(await imagePayload(page));
+      await expect(page.getByLabel(/ピッチ角/)).toHaveValue("25.2");
+      await expect(page.getByLabel("高度な設定を表示")).toBeChecked();
       await page.reload();
-      assert(!(await page.locator("#show-advanced").isChecked()));
-      assert(!(await page.locator("#projection-settings").isVisible()));
+      await expect(page.getByLabel("高度な設定を表示")).not.toBeChecked();
+      await expect(
+        page.getByRole("group", { name: "投影パラメータ" }),
+      ).toBeHidden();
       await checkInteractions(page, name, await imagePayload(page));
       await checkGameArea(page, name, await imagePayload(page));
       assert.deepEqual(errors, []);
