@@ -141,6 +141,32 @@ test("PNG dimensions are validated before decoding", async () => {
     "アニメーション",
   );
 });
+test("image content determines the parser even when the declared format differs", async () => {
+  const jpeg = new Uint8Array([255, 216, 255, 192, 0, 8, 8, 0, 100, 0, 200, 0]);
+  for (const type of ["image/png", "image/jpeg", "image/webp"]) {
+    for (const data of [png(200, 100), jpeg]) {
+      expect(
+        await readImageSize(new File([data], "test.jpg", { type })),
+      ).toEqual({
+        width: 200,
+        height: 100,
+      });
+    }
+    await expect(
+      readImageSize(new File([png(200, 100, true)], "test.jpg", { type })),
+    ).rejects.toThrow("アニメーション");
+    await expect(
+      readImageSize(new File([png(100000, 100000)], "test.jpg", { type })),
+    ).rejects.toThrow("50メガピクセル");
+    await expect(
+      readImageSize(
+        new File(['<svg xmlns="http://www.w3.org/2000/svg"/>'], "test.jpg", {
+          type,
+        }),
+      ),
+    ).rejects.toThrow("SVG");
+  }
+});
 test("unsupported, oversized, malformed and zero-sized images are rejected", async () => {
   expect(() => validateFile({ type: "image/svg+xml", size: 100 })).toThrow();
   expect(() =>

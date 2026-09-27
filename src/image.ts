@@ -205,7 +205,7 @@ export function validateSize(size: Size): void {
   }
 }
 
-export function validateSignature(type: string, bytes: Uint8Array): void {
+function detectImageType(bytes: Uint8Array): string {
   const startsWith = (signature: number[]) =>
     signature.every((byte, index) => bytes[index] === byte);
   const text = String.fromCharCode(...bytes);
@@ -214,10 +214,12 @@ export function validateSignature(type: string, bytes: Uint8Array): void {
     "image/jpeg": startsWith([255, 216, 255]),
     "image/webp": text.startsWith("RIFF") && text.slice(8, 12) === "WEBP",
   };
-  if (!matches[type])
+  const type = ACCEPTED_TYPES.find((type) => matches[type]);
+  if (!type)
     throw new Error(
-      "画像の内容がファイル形式と一致しません。SVGは利用できません。",
+      "PNG、JPEG、WebPの画像データを確認できませんでした。SVGは利用できません。",
     );
+  return type;
 }
 
 // Read dimensions without decoding pixels or buffering the entire file.
@@ -235,11 +237,11 @@ export async function readImageSize(file: File): Promise<Size> {
     return new DataView(buffer, offset - start, length);
   };
   const header = await read(0, 12);
-  validateSignature(
-    file.type,
+  // File.type can reflect the extension rather than the actual image format.
+  const type = detectImageType(
     new Uint8Array(header.buffer, header.byteOffset, header.byteLength),
   );
-  switch (file.type) {
+  switch (type) {
     case "image/png": {
       const data = await read(12, 12);
       if (header.getUint32(8) !== 13 || data.getUint32(0) !== 0x49484452)

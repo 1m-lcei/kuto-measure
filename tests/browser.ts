@@ -319,6 +319,32 @@ try {
       await page.getByRole("button", { name: "メニュー", exact: true }).click();
       await page.keyboard.press("Escape");
       await expect(page.getByRole("region", { name: "メニュー" })).toBeHidden();
+      // Supported raster data must load even if its extension/MIME label is wrong.
+      for (const type of ["image/png", "image/jpeg"]) {
+        const data = await page.evaluate((type) => {
+          const canvas = document.createElement("canvas");
+          canvas.width = 200;
+          canvas.height = 100;
+          return canvas.toDataURL(type).split(",")[1];
+        }, type);
+        await page.getByLabel("画像を開く").setInputFiles({
+          name: type === "image/png" ? "renamed.jpg" : "renamed.png",
+          mimeType: type === "image/png" ? "image/jpeg" : "image/png",
+          buffer: Buffer.from(data, "base64"),
+        });
+        await expect(page.locator("#image-size")).toHaveText(
+          "画像 200 × 100 px",
+        );
+        await expect(page.getByRole("application")).toHaveAttribute(
+          "aria-busy",
+          "false",
+        );
+        await expect(page.locator("#error")).toBeHidden();
+        await expect(page.locator("#image")).toHaveJSProperty(
+          "naturalWidth",
+          200,
+        );
+      }
       await page
         .getByLabel("画像を開く")
         .setInputFiles(await imagePayload(page));
