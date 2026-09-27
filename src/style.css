@@ -1,6 +1,7 @@
 @layer base, layout, controls, canvas, panels;
 @layer base {
   :root {
+    scrollbar-gutter: stable;
     font-family: Inter, "Noto Sans JP", "Yu Gothic UI", system-ui, sans-serif;
     color-scheme: light;
     --bg: #f6f7f9;
@@ -22,9 +23,53 @@
     color: var(--ink);
     font-size: 14px;
   }
+  @supports (color: light-dark(white, black)) {
+    :root {
+      --bg: light-dark(#f6f7f9, #11161f);
+      --panel: light-dark(#fff, #1b2330);
+      --ink: light-dark(#202b3d, #e4eaf4);
+      --muted: light-dark(#586778, #a5b3c6);
+      --border: light-dark(#d9dfe7, #394559);
+      --accent: light-dark(#215cc5, #9bbdff);
+      --focus: light-dark(#1b57c1, #a9c7ff);
+      --primary: light-dark(#215cc5, #95b9ff);
+      --primary-ink: light-dark(#fff, #101d35);
+      --primary-hover: light-dark(#16499f, #bbd1ff);
+      --soft: light-dark(#eef1f5, #151d29);
+      --grid: light-dark(#cbd3df, #344154);
+      --canvas: light-dark(#eef1f5, #151d29);
+      --danger: light-dark(#9c2424, #ffb6b6);
+    }
+  }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+  }
+  /* Keep existing theme colors in browsers without light-dark(). */
+  @supports not (color: light-dark(white, black)) {
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #11161f;
+        --panel: #1b2330;
+        --ink: #e4eaf4;
+        --muted: #a5b3c6;
+        --border: #394559;
+        --accent: #9bbdff;
+        --focus: #a9c7ff;
+        --primary: #95b9ff;
+        --primary-ink: #101d35;
+        --primary-hover: #bbd1ff;
+        --soft: #151d29;
+        --grid: #344154;
+        --canvas: #151d29;
+        --danger: #ffb6b6;
+      }
+    }
+    :root[data-theme="dark"] {
       --bg: #11161f;
       --panel: #1b2330;
       --ink: #e4eaf4;
@@ -40,23 +85,6 @@
       --canvas: #151d29;
       --danger: #ffb6b6;
     }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --bg: #11161f;
-    --panel: #1b2330;
-    --ink: #e4eaf4;
-    --muted: #a5b3c6;
-    --border: #394559;
-    --accent: #9bbdff;
-    --focus: #a9c7ff;
-    --primary: #95b9ff;
-    --primary-ink: #101d35;
-    --primary-hover: #bbd1ff;
-    --soft: #151d29;
-    --grid: #344154;
-    --canvas: #151d29;
-    --danger: #ffb6b6;
   }
   * {
     box-sizing: border-box;
@@ -397,6 +425,10 @@
     padding: 9px 10px;
     min-height: 37px;
   }
+  input:user-invalid {
+    border-color: var(--danger);
+    border-style: dashed;
+  }
   label input,
   label select {
     display: block;
@@ -434,6 +466,7 @@
   dialog {
     max-width: min(560px, calc(100% - 28px));
     max-height: calc(100dvh - 40px);
+    overscroll-behavior: contain;
     border: 1px solid var(--border);
     border-radius: 16px;
     corner-shape: squircle;
