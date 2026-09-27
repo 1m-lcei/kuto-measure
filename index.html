@@ -26,16 +26,7 @@
         <button id="export" type="button" class="primary" disabled>PNGを書き出す ↗</button>
       </div>
       <div id="header-icons" class="header-actions">
-        <button
-          id="help-trigger"
-          class="icon-button"
-          type="button"
-          commandfor="help"
-          command="show-modal"
-          aria-label="使い方"
-          title="使い方"
-          aria-haspopup="dialog"
-        >
+        <button id="help-trigger" class="icon-button" type="button" commandfor="help" command="show-modal" aria-label="使い方" title="使い方" aria-haspopup="dialog">
           <svg aria-hidden="true"><use href="/icons.svg#help" /></svg>
         </button>
         <button id="theme-toggle" class="icon-button" type="button" aria-label="テーマの切り替え" title="テーマの切り替え" hidden>
@@ -168,66 +159,18 @@
                     <span data-state="confirmed" hidden>（確認済み）</span>
                   </span>
                 </p>
-                <p class="muted" id="area-hint">
-                  ゲーム映像の外側にある帯の幅を、元画像のpx単位で指定します。入力すると赤い破線でプレビューします。「適用」で確定します。
-                </p>
+                <p class="muted" id="area-hint">ゲーム映像の外側にある帯の幅を、元画像のpx単位で指定します。入力すると赤い破線でプレビューします。「適用」で確定します。</p>
                 <form id="area-form">
                   <fieldset id="area-fields" disabled>
                     <legend class="sr-only">上下左右の除外幅</legend>
                     <div class="endpoint-fields">
-                      <label
-                        >上（px）<input
-                          id="area-top"
-                          name="top"
-                          type="number"
-                          min="0"
-                          step="1"
-                          value="0"
-                          required
-                          aria-describedby="area-hint area-error"
-                        ></label
-                      >
-                      <label
-                        >下（px）<input
-                          id="area-bottom"
-                          name="bottom"
-                          type="number"
-                          min="0"
-                          step="1"
-                          value="0"
-                          required
-                          aria-describedby="area-hint area-error"
-                        ></label
-                      >
-                      <label
-                        >左（px）<input
-                          id="area-left"
-                          name="left"
-                          type="number"
-                          min="0"
-                          step="1"
-                          value="0"
-                          required
-                          aria-describedby="area-hint area-error"
-                        ></label
-                      >
-                      <label
-                        >右（px）<input
-                          id="area-right"
-                          name="right"
-                          type="number"
-                          min="0"
-                          step="1"
-                          value="0"
-                          required
-                          aria-describedby="area-hint area-error"
-                        ></label
-                      >
+                      <label>上（px）<input id="area-top" name="top" type="number" min="0" step="1" value="0" required aria-describedby="area-hint area-error"></label>
+                      <label>下（px）<input id="area-bottom" name="bottom" type="number" min="0" step="1" value="0" required aria-describedby="area-hint area-error"></label>
+                      <label>左（px）<input id="area-left" name="left" type="number" min="0" step="1" value="0" required aria-describedby="area-hint area-error"></label>
+                      <label>右（px）<input id="area-right" name="right" type="number" min="0" step="1" value="0" required aria-describedby="area-hint area-error"></label>
                     </div>
                     <p id="area-error" class="detail danger" role="alert"></p>
-                    <p id="area-draft" class="muted" hidden>
-                      プレビュー中（未適用）。赤い破線の内側がゲーム領域、暗い部分が除外予定です。「適用」で確定、「取消」で元に戻します。
-                    </p>
+                    <p id="area-draft" class="muted" hidden>プレビュー中（未適用）。赤い破線の内側がゲーム領域、暗い部分が除外予定です。「適用」で確定、「取消」で元に戻します。</p>
                     <div class="area-actions">
                       <button id="area-apply" type="submit" class="primary">適用</button>
                       <button id="area-cancel" type="button">取消</button>
@@ -236,9 +179,7 @@
                     <button id="area-full" type="button" class="wide">画面全体を適用</button>
                   </fieldset>
                 </form>
-                <p class="muted">
-                  変更後は基準円の形を確認してください。領域外の注釈は保持されますが、表示・PNGでは隠れます。領域設定はこの画像だけに適用します。
-                </p>
+                <p class="muted">変更後は基準円の形を確認してください。領域外の注釈は保持されますが、表示・PNGでは隠れます。領域設定はこの画像だけに適用します。</p>
               </details>
               <section class="scale-card">
                 <span class="eyebrow">距離スケール</span>
