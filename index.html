@@ -117,9 +117,14 @@
             </div>
           </div>
           <div class="canvas-footer">
-            <span id="image-size">画像未選択</span>
+            <div class="image-info" title="アスペクト比は幅:高さ（小数第3位まで）">
+              <span id="image-size">画像未選択</span>
+              <span id="game-size" hidden></span>
+            </div>
             <div class="zoom-tools">
-              <button id="fit" type="button">全体表示</button>
+              <button id="fit" type="button" class="icon-button" aria-label="全体表示" title="全体表示">
+                <svg aria-hidden="true"><use href="/icons.svg#fit" /></svg>
+              </button>
               <button id="actual" type="button">100%</button>
               <button id="zoom-out" type="button" aria-label="縮小">−</button>
               <output id="zoom">—</output>

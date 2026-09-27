@@ -214,15 +214,29 @@
     background: var(--panel);
   }
   .canvas-footer {
-    height: 52px;
+    min-height: 52px;
     padding: 8px 13px;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
     border-top: 1px solid var(--border);
     font-size: 11px;
     color: var(--muted);
+  }
+  .image-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    font-variant-numeric: tabular-nums;
+  }
+  .image-info span {
+    white-space: nowrap;
+  }
+  .zoom-tools {
+    flex-shrink: 0;
+    margin-inline-start: auto;
   }
   .statusbar {
     display: flex;
@@ -267,10 +281,6 @@
     .statusbar {
       flex-direction: column;
       gap: 4px;
-    }
-    .canvas-footer {
-      height: auto;
-      flex-wrap: wrap;
     }
     .header {
       padding: 14px;

@@ -276,7 +276,18 @@ try {
       );
       assert.equal(
         await page.locator("#image-size").textContent(),
-        "1536 × 709 px",
+        "画像 1536 × 709 px（2.166:1）",
+      );
+      assert.equal(
+        await page.locator("#game-size").textContent(),
+        "ゲーム領域 1536 × 709 px（2.166:1）",
+      );
+      assert.equal(
+        await page
+          .getByRole("button", { name: "全体表示", exact: true })
+          .locator("svg use")
+          .getAttribute("href"),
+        "./icons.svg#fit",
       );
       await page.locator('[data-tool="pin"]').click();
       await clickImage(page, 500, 400);
@@ -677,6 +688,14 @@ try {
         assert(
           Math.abs(clip.y - 96) <= 3 && Math.abs(clip.height - 888) <= 6,
           "Image border must be detected automatically",
+        );
+        assert.equal(
+          await page.locator("#image-size").textContent(),
+          "画像 1920 × 1080 px（1.778:1）",
+        );
+        assert.equal(
+          await page.locator("#game-size").textContent(),
+          `ゲーム領域 1920 × ${clip.height} px（${(1920 / clip.height).toFixed(3)}:1）`,
         );
         const boundary = page.locator("#overlay .excluded-boundary");
         assert.equal(await boundary.count(), 1);
