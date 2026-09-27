@@ -20,6 +20,8 @@ bun run test:browser
 Linuxではブラウザ準備に`--with-deps`を追加してください。
 整形・安全なlint修正は`bun run format`で実行できます。
 
+確認案内やパネルの状態別の固定文言は `index.html` で編集します。状態別の文言は `data-state` で識別し、JavaScriptは `hidden` の切り替えを担当します。色・配置・空一覧の表示はCSS、計算値・入力検証・編集状態はJavaScriptで扱います。
+
 ## 公開
 
 GitHubのリポジトリを接続し、Settings → Pages → Sourceを「GitHub Actions」に設定します。

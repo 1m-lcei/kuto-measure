@@ -55,6 +55,7 @@ export interface GuideCircle {
 }
 export interface AnalysisDocument {
   readonly calibration: CameraCalibration;
+  readonly renderArea: RenderAreaSetting | null;
   readonly pins: readonly Pin[];
   readonly groups: readonly Group[];
   readonly measurements: readonly Measurement[];
@@ -63,12 +64,50 @@ export interface AnalysisDocument {
 }
 export const emptyDocument = (): AnalysisDocument => ({
   calibration: DEFAULT_CALIBRATION,
+  renderArea: null,
   pins: [],
   groups: [],
   measurements: [],
   guides: [],
   reference: null,
 });
+export interface RenderAreaSetting {
+  readonly bounds: ImageRect;
+  readonly source: "auto" | "manual" | "full" | "fallback";
+  readonly confirmed: boolean;
+}
+export function automaticRenderArea(
+  size: Size,
+  bounds: ImageRect,
+): RenderAreaSetting {
+  return {
+    bounds,
+    confirmed: false,
+    source:
+      bounds.x === 0 &&
+      bounds.y === 0 &&
+      bounds.width === size.width &&
+      bounds.height === size.height
+        ? "fallback"
+        : "auto",
+  };
+}
+export function validateRenderArea(bounds: ImageRect, size: Size): void {
+  if (
+    ![bounds.x, bounds.y, bounds.width, bounds.height].every(
+      Number.isSafeInteger,
+    ) ||
+    bounds.x < 0 ||
+    bounds.y < 0 ||
+    bounds.width < 1 ||
+    bounds.height < 1 ||
+    bounds.x + bounds.width > size.width ||
+    bounds.y + bounds.height > size.height
+  )
+    throw new Error(
+      "除外幅は0以上の整数にし、ゲーム領域を縦横とも1px以上残してください。",
+    );
+}
 export interface ReferencePreset {
   version: 1;
   calibration: CameraCalibration;
@@ -236,6 +275,13 @@ export function exists(doc: AnalysisDocument, s: Selection): boolean {
   }
 }
 export type Edit =
+  | { type: "confirm-area" }
+  | {
+      type: "render-area";
+      value: RenderAreaSetting;
+      size: Size;
+      renderArea: ImageRect;
+    }
   | { type: "reset-reference"; size: Size; renderArea: ImageRect }
   | {
       type: "calibration";
@@ -272,6 +318,10 @@ function upsert<T extends { id: string }>(
 export function applyEdit(doc: AnalysisDocument, edit: Edit): AnalysisDocument {
   let next: AnalysisDocument;
   switch (edit.type) {
+    case "confirm-area":
+      if (!doc.renderArea || doc.renderArea.confirmed) return doc;
+      next = { ...doc, renderArea: { ...doc.renderArea, confirmed: true } };
+      break;
     case "reset-reference":
       return applyEdit(
         { ...doc, reference: null },
@@ -282,18 +332,33 @@ export function applyEdit(doc: AnalysisDocument, edit: Edit): AnalysisDocument {
           renderArea: edit.renderArea,
         },
       );
-    case "calibration": {
+    case "calibration":
+    case "render-area": {
+      const calibration =
+        edit.type === "calibration" ? edit.value : doc.calibration;
+      const renderArea =
+        edit.type === "render-area" ? edit.value : doc.renderArea;
+      if (edit.type === "render-area")
+        validateRenderArea(edit.value.bounds, edit.size);
       const previous = buildProjection(
         doc.calibration,
         edit.size,
-        edit.renderArea,
+        doc.renderArea?.bounds ?? edit.renderArea,
       );
       const projection = buildProjection(
-        edit.value,
+        calibration,
         edit.size,
-        edit.renderArea,
+        renderArea?.bounds ?? edit.renderArea,
       );
-      if (sameCalibration(doc.calibration, edit.value)) return doc;
+      if (
+        sameCalibration(doc.calibration, calibration) &&
+        (["x", "y", "width", "height"] as const).every(
+          (key) => previous.renderArea[key] === projection.renderArea[key],
+        )
+      ) {
+        next = { ...doc, renderArea };
+        break;
+      }
       const remap = (point: GroundPoint): GroundPoint => {
         const image = groundToImage(point, previous);
         const ground = image && imageToGround(image, projection);
@@ -317,7 +382,8 @@ export function applyEdit(doc: AnalysisDocument, edit: Edit): AnalysisDocument {
       }
       next = {
         ...doc,
-        calibration: edit.value,
+        calibration,
+        renderArea,
         pins: doc.pins.map((pin) => ({ ...pin, point: remap(pin.point) })),
         guides: doc.guides.map((guide) => ({
           ...guide,

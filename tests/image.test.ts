@@ -78,6 +78,35 @@ test("paired game borders are detected without treating scene content or a solid
       }),
     ),
   ).toEqual({ x: 0, y: 10, width, height: 78 });
+  // Cyan cursor pixels pass the blue filter, but must not terminate an entire band.
+  for (const cursorX of [0, 30, 98, 160, 195]) {
+    for (const cursorY of [0, 90, 96]) {
+      expect(
+        detectRenderArea(
+          pixels((x, y) => {
+            if (
+              x >= cursorX &&
+              x < cursorX + 5 &&
+              y >= cursorY &&
+              y < cursorY + 8
+            )
+              return [200, 235, 255];
+            return y < 10 || y >= 90
+              ? [55 + (x % 8), 105 + (x % 8), 155 + (x % 8)]
+              : null;
+          }),
+        ),
+      ).toEqual({ x: 0, y: 10, width, height: 80 });
+    }
+  }
+  expect(
+    detectRenderArea(
+      pixels((x, y) => {
+        if (y >= 90 && (x < 50 || x >= 150)) return [245, 245, 245];
+        return y < 10 || y >= 90 ? [55, 105, 155] : null;
+      }),
+    ),
+  ).toEqual(full);
   for (const border of [
     (_x: number, y: number) => (y < 10 ? [55, 105, 155] : null),
     (_x: number, y: number) => (y < 10 || y >= 85 ? [55, 105, 155] : null),

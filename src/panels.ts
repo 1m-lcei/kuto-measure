@@ -1,4 +1,9 @@
-import { circleValid, gameDistance, type Projection } from "./geometry";
+import {
+  circleValid,
+  gameDistance,
+  type ImageRect,
+  type Projection,
+} from "./geometry";
 import {
   type AnalysisDocument,
   centroid,
@@ -12,6 +17,7 @@ import {
   type Selection,
   scaleFactor,
   selectionKey,
+  validateRenderArea,
 } from "./model";
 
 export function element<T extends Element = HTMLElement>(id: string): T {
@@ -19,11 +25,19 @@ export function element<T extends Element = HTMLElement>(id: string): T {
   if (!node) throw new Error(`Missing element: ${id}`);
   return node as unknown as T;
 }
+export function showState(id: string, state: string) {
+  for (const node of element(id).querySelectorAll<HTMLElement>(
+    ":scope > [data-state]",
+  ))
+    node.hidden = node.dataset.state !== state;
+}
 export function createPanels(actions: {
-  edit: (e: Edit) => void;
+  edit: (e: Edit) => boolean;
   select: (s: Selection) => void;
   error: (e: unknown) => void;
   measure: (a: Endpoint, b: Endpoint) => void;
+  previewArea: (bounds: ImageRect | null) => void;
+  automaticArea: () => boolean;
 }) {
   let doc: AnalysisDocument,
     projection: Projection | null = null,
@@ -45,6 +59,146 @@ export function createPanels(actions: {
     if (!input.value.trim()) throw new Error("半径を入力してください。");
     return gameDistance(Number(input.value));
   };
+  const areaForm = element<HTMLFormElement>("area-form");
+  const areaInputs = ["top", "bottom", "left", "right"].map((side) =>
+    element<HTMLInputElement>(`area-${side}`),
+  );
+  const areaError = element("area-error");
+  const areaDraft = element("area-draft");
+  const referencePanel = element<HTMLDetailsElement>("reference-panel");
+  const areaPanel = element<HTMLDetailsElement>("game-area");
+  const readArea = (): ImageRect => {
+    if (!projection) throw new Error("先に画像を開いてください。");
+    const [top, bottom, left, right] = areaInputs.map(
+      (input) => input.valueAsNumber,
+    );
+    if (
+      ![top, bottom, left, right].every(
+        (value) => Number.isSafeInteger(value) && value >= 0,
+      )
+    )
+      throw new Error("除外幅は0以上の整数で入力してください。");
+    const bounds = {
+      x: left,
+      y: top,
+      width: projection.size.width - left - right,
+      height: projection.size.height - top - bottom,
+    };
+    validateRenderArea(bounds, projection.size);
+    return bounds;
+  };
+  const cancelArea = () => {
+    if (projection) {
+      const { size, renderArea: a } = projection;
+      const values = [
+        a.y,
+        size.height - a.y - a.height,
+        a.x,
+        size.width - a.x - a.width,
+      ];
+      areaInputs.forEach((input, i) => {
+        input.value = String(values[i]);
+        input.max = String((i < 2 ? size.height : size.width) - 1);
+      });
+    }
+    for (const input of areaInputs) input.removeAttribute("aria-invalid");
+    areaError.textContent = "";
+    areaDraft.hidden = true;
+    actions.previewArea(null);
+  };
+  areaForm.addEventListener("input", () => {
+    areaError.textContent = "";
+    for (const input of areaInputs) input.removeAttribute("aria-invalid");
+    areaDraft.hidden = false;
+    try {
+      actions.previewArea(readArea());
+    } catch {
+      actions.previewArea(null);
+    }
+  });
+  areaForm.addEventListener(
+    "invalid",
+    (event) => {
+      (event.target as HTMLInputElement).setAttribute("aria-invalid", "true");
+      areaError.textContent =
+        "除外幅は0以上の整数にし、ゲーム領域を縦横とも1px以上残してください。";
+    },
+    true,
+  );
+  areaForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!projection) return;
+    let bounds: ImageRect;
+    try {
+      bounds = readArea();
+    } catch (error) {
+      areaError.textContent =
+        error instanceof Error ? error.message : String(error);
+      const field =
+        areaInputs[0].valueAsNumber + areaInputs[1].valueAsNumber >=
+        projection.size.height
+          ? areaInputs[1]
+          : areaInputs[3];
+      field.setAttribute("aria-invalid", "true");
+      field.focus();
+      return;
+    }
+    if (
+      actions.edit({
+        type: "render-area",
+        value: { bounds, source: "manual", confirmed: true },
+        size: projection.size,
+        renderArea: projection.renderArea,
+      })
+    )
+      cancelArea();
+  });
+  areaForm.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      cancelArea();
+    }
+  });
+  element("area-cancel").addEventListener("click", cancelArea);
+  element("area-auto").addEventListener("click", () => {
+    if (actions.automaticArea()) cancelArea();
+  });
+  const useFullArea = () => {
+    if (
+      projection &&
+      actions.edit({
+        type: "render-area",
+        value: {
+          bounds: {
+            x: 0,
+            y: 0,
+            width: projection.size.width,
+            height: projection.size.height,
+          },
+          source: "full",
+          confirmed: true,
+        },
+        size: projection.size,
+        renderArea: projection.renderArea,
+      })
+    )
+      cancelArea();
+  };
+  element("area-full").addEventListener("click", useFullArea);
+  element("area-confirm").addEventListener("click", () => {
+    if (actions.edit({ type: "confirm-area" }))
+      element("viewport").focus({ preventScroll: true });
+  });
+  element("area-open").addEventListener("click", () => {
+    referencePanel.open = true;
+    areaPanel.open = true;
+    areaInputs[0].focus();
+  });
+  for (const panel of [referencePanel, areaPanel])
+    panel.addEventListener("toggle", () => {
+      if (!panel.open) cancelArea();
+    });
   const advanced = element<HTMLInputElement>("show-advanced");
   const projectionForm = element<HTMLFormElement>("projection-settings");
   const pitch = element<HTMLInputElement>("pitch-angle"),
@@ -215,6 +369,7 @@ export function createPanels(actions: {
     select.dataset.options = signature;
   }
   return {
+    cancelArea,
     render(
       history: History,
       nextSelection: Selection | null,
@@ -224,8 +379,28 @@ export function createPanels(actions: {
       const calibrationChanged =
         doc?.calibration !== history.present.calibration ||
         projection?.size !== p?.size;
+      const areaChanged =
+        doc?.renderArea !== history.present.renderArea ||
+        projection?.size !== p?.size;
       doc = history.present;
       projection = p;
+      element<HTMLFieldSetElement>("area-fields").disabled = !p;
+      if (areaChanged) cancelArea();
+      const areaSource = doc.renderArea?.source;
+      const needsConfirmation = !!doc.renderArea && !doc.renderArea.confirmed;
+      const areaState = element("area-state");
+      showState(
+        "area-source",
+        areaSource === "fallback" ? "full" : (areaSource ?? "none"),
+      );
+      element("area-confirmation").hidden = !areaSource;
+      showState(
+        "area-confirmation",
+        needsConfirmation ? "pending" : "confirmed",
+      );
+      areaState.dataset.source = areaSource ?? "";
+      areaState.dataset.confirmed = String(!needsConfirmation);
+      element("area-warning").hidden = !needsConfirmation;
       element<HTMLFieldSetElement>("projection-fields").disabled = !p;
       if (calibrationChanged)
         for (const [input, value] of [
@@ -244,34 +419,21 @@ export function createPanels(actions: {
       radius.disabled = !doc.reference;
       setValue(radius, doc.reference?.radiusGame?.toString() ?? "");
       const scale = scaleFactor(doc);
-      element("scale-state").textContent = scale
+      const scaleState = scale
         ? doc.reference?.radiusGame
-          ? "距離スケール設定済み"
-          : "相対距離"
+          ? "absolute"
+          : "relative"
         : hasImage && !p
-          ? "投影を設定できません"
-          : "距離スケール未設定";
-      element("scale-hint").textContent = scale
-        ? doc.reference?.radiusGame
-          ? "地面上の距離をゲーム内の数値で表示しています。"
-          : "最初の測距線を1として、地面上の距離を表示しています。"
-        : hasImage && !p
-          ? "キャリブレーションの設定を確認してください。"
-          : "基準円の半径を入力するか、長さ0でない最初の測距線を作成してください。";
+          ? "invalid"
+          : "unset";
+      showState("scale-state", scaleState);
+      showState("scale-hint", scaleState);
       element("name-row").hidden =
         selection?.kind !== "pin" && selection?.kind !== "group";
       element("group-row").hidden = selection?.kind !== "pin";
       element("guide-radius-row").hidden = selection?.kind !== "guide";
       element("object-detail").textContent = "";
-      element("selection-title").textContent = selection
-        ? {
-            pin: "ピン",
-            group: "グループ",
-            measurement: "測距線",
-            guide: "補助円",
-            reference: "基準円",
-          }[selection.kind]
-        : "対象を選択すると編集できます。";
+      showState("selection-title", selection?.kind ?? "none");
       options(
         group,
         [
@@ -440,12 +602,6 @@ export function createPanels(actions: {
       }
       element("object-count").textContent = String(rows.length);
       list.replaceChildren(...rows);
-      if (!rows.length) {
-        const hint = document.createElement("p");
-        hint.className = "muted";
-        hint.textContent = "ピン・円・測距線がここに並びます。";
-        list.append(hint);
-      }
       if (focused)
         rows
           .find((r) => r.dataset.objectKey === focused)

@@ -158,14 +158,18 @@ export async function checkInteractions(
   await page.locator("#reference-radius").press("Tab");
   assert.equal(await stored(), first);
   assert.match(
-    (await page.locator("#saved-reference-state").textContent()) ?? "",
+    (await page
+      .locator("#saved-reference-state > [data-state]:not([hidden])")
+      .textContent()) ?? "",
     /異なります/,
   );
   await load();
   assert.equal(await page.locator("#reference-radius").inputValue(), "500");
   assert(await page.locator("#undo").isDisabled());
   assert.equal(
-    await page.locator("#saved-reference-state").textContent(),
+    await page
+      .locator("#saved-reference-state > [data-state]:not([hidden])")
+      .textContent(),
     "保存した基準を使用中",
   );
   const count = confirmations;
@@ -294,7 +298,9 @@ export async function checkInteractions(
   await load();
   assert.equal(await page.locator("#reference-radius").inputValue(), "");
   assert.match(
-    (await page.locator("#saved-reference-state").textContent()) ?? "",
+    (await page
+      .locator("#saved-reference-state > [data-state]:not([hidden])")
+      .textContent()) ?? "",
     /確認できません/,
   );
   await page.evaluate(() =>

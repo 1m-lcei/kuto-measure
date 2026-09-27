@@ -21,6 +21,7 @@ import { type Label, layoutLabels, overlapArea } from "../src/labels";
 import {
   type AnalysisDocument,
   applyEdit,
+  automaticRenderArea,
   centroid,
   commit,
   documentFromPreset,
@@ -35,6 +36,7 @@ import {
   resolveCenter,
   scaleFactor,
   undo,
+  validateRenderArea,
 } from "../src/model";
 import { renderAnnotations } from "../src/render";
 
@@ -245,6 +247,160 @@ function populated(): AnalysisDocument {
     },
   });
 }
+test("game area edits preserve anchors, update distances and restore bounds and state together", () => {
+  const size = { width: 1536, height: 900 };
+  const full = { x: 0, y: 0, ...size };
+  const bounds = { x: 12, y: 90, width: 1500, height: 709 };
+  const doc = applyEdit(
+    applyEdit(
+      { ...populated(), renderArea: automaticRenderArea(size, full) },
+      {
+        type: "guide",
+        value: {
+          id: "free",
+          center: { kind: "point", point: groundPoint(0.1, 0.1) },
+          radiusGame: gameDistance(100),
+        },
+      },
+    ),
+    {
+      type: "measurement",
+      value: { id: "m", from: endpoint("a"), to: endpoint("b") },
+    },
+  );
+  const edit = {
+    type: "render-area" as const,
+    value: { bounds, source: "manual" as const, confirmed: true },
+    size,
+    renderArea: full,
+  };
+  const next = applyEdit(doc, edit);
+  const before = buildProjection(doc.calibration, size, full);
+  const after = buildProjection(next.calibration, size, bounds);
+  expect(doc.renderArea?.source).toBe("fallback");
+  expect(automaticRenderArea(size, bounds).source).toBe("auto");
+  expect(next.renderArea).toEqual(edit.value);
+  assert(doc.reference && next.reference);
+  for (let i = 0; i < doc.pins.length; i++) {
+    const image = groundToImage(doc.pins[i].point, before);
+    assert(image);
+    pointClose(groundToImage(next.pins[i].point, after), image);
+  }
+  const oldFree = resolveCenter(doc, doc.guides[0].center);
+  const newFree = resolveCenter(next, next.guides[0].center);
+  assert(oldFree && newFree);
+  const oldFreeImage = groundToImage(oldFree, before);
+  const oldCenter = groundToImage(doc.reference.center, before);
+  const oldRim = groundToImage(
+    circlePoint(doc.reference.center, doc.reference.radiusGround, 0),
+    before,
+  );
+  assert(oldFreeImage && oldCenter && oldRim);
+  pointClose(groundToImage(newFree, after), oldFreeImage);
+  pointClose(groundToImage(next.reference.center, after), oldCenter);
+  const newRim = imageToGround(oldRim, after);
+  assert(newRim);
+  close(next.reference.radiusGround, distance(next.reference.center, newRim));
+  expect(next.reference.radiusGame).toBe(doc.reference.radiusGame);
+  expect(next.guides[0].radiusGame).toBe(doc.guides[0].radiusGame);
+  expect(next.measurements).toBe(doc.measurements);
+  expect(next.groups).toBe(doc.groups);
+  expect(measuredDistance(next, next.measurements[0])).not.toBe(
+    measuredDistance(doc, doc.measurements[0]),
+  );
+  const history = commit(newHistory(doc), next);
+  expect(undo(history).present).toEqual(doc);
+  expect(redo(undo(history)).present).toEqual(next);
+  expect(applyEdit(next, edit)).toBe(next);
+  const confirmed = applyEdit(doc, {
+    ...edit,
+    value: { bounds: full, source: "full", confirmed: true },
+  });
+  expect(confirmed.pins).toBe(doc.pins);
+  expect(confirmed.reference).toBe(doc.reference);
+  expect(confirmed.renderArea?.source).toBe("full");
+  expect(
+    undo(commit(newHistory(doc), confirmed)).present.renderArea?.source,
+  ).toBe("fallback");
+  const preset = referencePreset(next);
+  expect(preset).not.toHaveProperty("renderArea");
+  expect(documentFromPreset(preset, size, bounds).renderArea).toBeNull();
+  const reset = applyEdit(next, {
+    type: "reset-reference",
+    size,
+    renderArea: full,
+  });
+  expect(reset.renderArea).toBe(next.renderArea);
+  expect(reset.pins).toBe(next.pins);
+  for (const invalid of [
+    { ...bounds, x: -1 },
+    { ...bounds, y: NaN },
+    { ...bounds, x: 0.5 },
+    { ...bounds, width: Infinity },
+    { ...bounds, width: 0 },
+    { ...bounds, height: 0 },
+    { ...bounds, height: size.height },
+    { ...bounds, width: size.width },
+  ]) {
+    expect(() => validateRenderArea(invalid, size)).toThrow();
+    expect(() =>
+      applyEdit(doc, { ...edit, value: { ...edit.value, bounds: invalid } }),
+    ).toThrow();
+  }
+  const snapshot = JSON.stringify(doc);
+  expect(() =>
+    applyEdit(doc, {
+      ...edit,
+      value: {
+        ...edit.value,
+        bounds: { x: 0, y: 899, width: 1536, height: 1 },
+      },
+    }),
+  ).toThrow();
+  expect(JSON.stringify(doc)).toBe(snapshot);
+  const render = (interactive: boolean) =>
+    renderAnnotations(next, after, {
+      zoom: 1,
+      selection: null,
+      interactive,
+      areaPreview: full,
+      measureLabel: (text) => ({
+        width: text.length * 7,
+        ascent: 9,
+        descent: 3,
+      }),
+    }).markup;
+  expect(render(true)).toContain('class="area-preview"');
+  expect(render(false)).not.toContain('class="area-preview"');
+  expect(render(false)).not.toContain('class="excluded-boundary"');
+  expect(render(false)).toContain(`x="12" y="90" width="1500" height="709"`);
+});
+
+test("confirming automatic and fallback areas preserves geometry and participates in history", () => {
+  const size = { width: 1536, height: 900 };
+  for (const bounds of [
+    { x: 0, y: 0, ...size },
+    { x: 0, y: 90, width: 1536, height: 720 },
+  ]) {
+    const doc = {
+      ...populated(),
+      renderArea: automaticRenderArea(size, bounds),
+    };
+    expect(doc.renderArea.confirmed).toBe(false);
+    const next = applyEdit(doc, { type: "confirm-area" });
+    expect(next.renderArea?.confirmed).toBe(true);
+    expect(next.renderArea?.bounds).toBe(bounds);
+    expect(next.renderArea?.source).toBe(doc.renderArea.source);
+    expect(next.pins).toBe(doc.pins);
+    expect(next.reference).toBe(doc.reference);
+    expect(referencePreset(next)).toEqual(referencePreset(doc));
+    expect(applyEdit(next, { type: "confirm-area" })).toBe(next);
+    const history = commit(newHistory(doc), next);
+    expect(undo(history).present).toEqual(doc);
+    expect(redo(undo(history)).present).toEqual(next);
+  }
+});
+
 test("calibration preserves image anchors, recalculates distances, and undoes atomically", () => {
   const doc = applyEdit(
     applyEdit(populated(), {

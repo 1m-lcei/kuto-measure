@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { chromium, firefox, type Page, webkit } from "playwright";
+import { checkGameArea } from "./game-area";
 import { checkInteractions } from "./interactions";
 
 // Serve the actual production artifact under a project-site path; no app test hooks.
@@ -149,6 +150,15 @@ try {
     page.on("dialog", (d) => void d.accept());
     try {
       await page.goto(`http://127.0.0.1:${server.port}/nested/`);
+      assert(
+        (await page.locator("#empty .screenshot-hint").textContent())?.trim(),
+      );
+      assert(await page.locator("#empty .screenshot-hint").isVisible());
+      assert(await page.locator("#object-empty").isVisible());
+      await page.screenshot({
+        path: `test-results/${name}-empty-hint.png`,
+        fullPage: true,
+      });
       for (const width of [1440, 780, 779, 390, 320, 1440]) {
         await page.locator("#theme-toggle").focus();
         await page.setViewportSize({ width, height: 1000 });
@@ -306,7 +316,7 @@ try {
       );
       assert.equal(
         await page.locator("#game-size").textContent(),
-        "ゲーム領域 1536 × 709 px（2.166:1）",
+        "ゲーム領域 画像全体（2.166:1）",
       );
       assert.equal(
         await page
@@ -328,7 +338,9 @@ try {
         "1.0000",
       );
       assert.equal(
-        await page.locator("#scale-state").textContent(),
+        await page
+          .locator("#scale-state > [data-state]:not([hidden])")
+          .textContent(),
         "相対距離",
       );
       await page
@@ -380,7 +392,9 @@ try {
           .evaluate((el) => (el as HTMLDetailsElement).open)),
       );
       assert.equal(
-        await page.locator("#scale-state").textContent(),
+        await page
+          .locator("#scale-state > [data-state]:not([hidden])")
+          .textContent(),
         "距離スケール設定済み",
       );
       await page.locator('[data-tool="pin"]').click();
@@ -637,7 +651,9 @@ try {
         await page.locator('[data-object-key="reference"]').click();
         await page.locator("#delete").click();
         assert.equal(
-          await page.locator("#scale-state").textContent(),
+          await page
+            .locator("#scale-state > [data-state]:not([hidden])")
+            .textContent(),
           "相対距離",
         );
         assert.equal(
@@ -768,6 +784,7 @@ try {
       assert(!(await page.locator("#show-advanced").isChecked()));
       assert(!(await page.locator("#projection-settings").isVisible()));
       await checkInteractions(page, name, await imagePayload(page));
+      await checkGameArea(page, name, await imagePayload(page));
       assert.deepEqual(errors, []);
       console.log(`${name}: passed`);
     } catch (e) {

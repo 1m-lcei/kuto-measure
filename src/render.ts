@@ -46,6 +46,7 @@ export interface RenderOptions {
   coarse?: boolean;
   visible?: { left: number; top: number; right: number; bottom: number };
   cursor?: ImagePoint | null;
+  areaPreview?: Projection["renderArea"] | null;
   referenceStart?: ImagePoint | null;
 }
 export function renderAnnotations(
@@ -309,8 +310,14 @@ export function renderAnnotations(
   ].join("");
   if (o.interactive && boundary)
     controls.unshift(
-      `<path class="excluded-boundary" d="${boundary}" ${stroke("#ef4444", 1)} opacity="0.65" pointer-events="none" role="img" aria-label="自動除外範囲の境界"><title>赤線の外側は測距から自動除外されています</title></path>`,
+      `<path class="excluded-boundary" d="${boundary}" ${stroke("#ef4444", 1)} opacity="0.65" pointer-events="none" role="img" aria-label="ゲーム領域の境界"><title>赤線の外側は測距から除外されています</title></path>`,
     );
+  if (o.interactive && o.areaPreview) {
+    const draft = o.areaPreview;
+    controls.push(
+      `<rect class="area-preview" x="${draft.x}" y="${draft.y}" width="${draft.width}" height="${draft.height}" ${stroke("#fbbf24", 2)} stroke-dasharray="8 5" pointer-events="none" role="img" aria-label="未適用のゲーム領域"><title>破線は未適用のゲーム領域です</title></rect>`,
+    );
+  }
   const layout = layoutLabels(labels, area, z, obstacles, o.measureLabel);
   if (layout.crowded) warnings.push(DENSE_LABELS);
   const labelMarkup = layout.boxes

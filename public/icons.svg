@@ -1,4 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <symbol id="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m5 12 4 4L19 6" />
+  </symbol>
   <symbol id="help" viewBox="0 0 24 24">
     <circle cx="12" cy="12" r="9"/><path d="M9.2 9a2.8 2.8 0 1 1 4.7 2c-1.1.7-1.9 1.2-1.9 2.5M12 17h.01"/>
   </symbol>

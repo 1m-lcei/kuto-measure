@@ -12,6 +12,7 @@ import {
   groundPoint,
   groundToImage,
   type ImagePoint,
+  type ImageRect,
   imagePoint,
   imageToGround,
   inImage,
@@ -23,6 +24,7 @@ import { canvasLabelMeasure } from "./labels";
 import {
   type AnalysisDocument,
   applyEdit,
+  automaticRenderArea,
   type CircleCenter,
   commit,
   documentFromPreset,
@@ -42,7 +44,7 @@ import {
   scaleFactor,
   undo,
 } from "./model";
-import { createPanels, element } from "./panels";
+import { createPanels, element, showState } from "./panels";
 import { renderAnnotations } from "./render";
 import { createViewport } from "./viewport";
 
@@ -76,6 +78,7 @@ let cursor: ImagePoint | null = null,
   loadRequest = 0,
   loading = false,
   exporting = false;
+let areaPreview: ImageRect | null = null;
 let initialDocument = history.present,
   exportName = "";
 const presetKey = "kuto-measure.reference-preset";
@@ -106,6 +109,22 @@ const panels = createPanels({
   select: selectObject,
   error: showError,
   measure: addMeasurement,
+  previewArea: (bounds) => {
+    areaPreview = bounds;
+    schedule();
+  },
+  automaticArea: () => {
+    if (!resource) return false;
+    return editDocument({
+      type: "render-area",
+      value: {
+        ...automaticRenderArea(resource, resource.renderArea),
+        confirmed: true,
+      },
+      size: resource,
+      renderArea: resource.renderArea,
+    });
+  },
 });
 const view = createViewport(
   viewport,
@@ -144,12 +163,8 @@ function renderSavedReference() {
   const doc = history.present;
   const canSave = !!resource && !!doc.reference?.radiusGame && !loading;
   element<HTMLButtonElement>("save-reference").disabled = !canSave;
-  element("save-reference").textContent = savedExists
-    ? "現在の基準で上書き"
-    : "現在の基準を保存";
-  element("save-reference-hint").textContent = canSave
-    ? "確定済みの円とカメラ設定を保存します。調整後は明示的に上書きしてください。"
-    : "先に基準円のゲーム内半径を設定してください。";
+  showState("save-reference", savedExists ? "overwrite" : "new");
+  showState("save-reference-hint", canSave ? "available" : "unavailable");
   element<HTMLButtonElement>("delete-saved-reference").disabled =
     !savedExists && !presetError;
   element<HTMLButtonElement>("reset-reference").disabled =
@@ -160,20 +175,24 @@ function renderSavedReference() {
   element("saved-reference-detail").textContent = savedPreset
     ? `保存したゲーム内半径：${savedPreset.reference.radiusGame}（カメラ設定を含む）`
     : "";
-  element("saved-reference-state").textContent = !savedPreset
-    ? savedExists
-      ? "保存した基準は使用できません"
-      : presetError
-        ? "保存した基準を確認できません"
-        : "保存した基準はありません"
-    : !resource
-      ? "次に開く画像へ自動適用します"
-      : !doc.reference
-        ? "この画像では保存した基準を使用していません"
-        : doc.reference.radiusGame &&
-            JSON.stringify(referencePreset(doc)) === JSON.stringify(savedPreset)
-          ? "保存した基準を使用中"
-          : "現在の基準は保存内容と異なります";
+  showState(
+    "saved-reference-state",
+    !savedPreset
+      ? savedExists
+        ? "invalid"
+        : presetError
+          ? "error"
+          : "none"
+      : !resource
+        ? "ready"
+        : !doc.reference
+          ? "unused"
+          : doc.reference.radiusGame &&
+              JSON.stringify(referencePreset(doc)) ===
+                JSON.stringify(savedPreset)
+            ? "active"
+            : "changed",
+  );
 }
 function hasEdits() {
   return (
@@ -184,6 +203,10 @@ function hasEdits() {
     JSON.stringify({
       ...history.present,
       calibration: initialDocument.calibration,
+      renderArea: history.present.renderArea && {
+        ...history.present.renderArea,
+        confirmed: initialDocument.renderArea?.confirmed ?? false,
+      },
     }) !== JSON.stringify(initialDocument)
   );
 }
@@ -284,6 +307,7 @@ function draw() {
     coarse: coarse.matches,
     visible: view.visible(),
     cursor,
+    areaPreview,
     referenceStart: referenceStart
       ? groundToImage(referenceStart, projection)
       : null,
@@ -311,7 +335,7 @@ function refresh() {
       projection = buildProjection(
         history.present.calibration,
         resource,
-        resource.renderArea,
+        history.present.renderArea?.bounds ?? resource.renderArea,
       );
     } catch (e) {
       projection = null;
@@ -320,6 +344,17 @@ function refresh() {
   }
   if (selection && !exists(history.present, selection)) selection = null;
   panels.render(history, selection, projection, !!resource);
+  if (projection) {
+    const area = projection.renderArea;
+    const fullImage =
+      area.x === 0 &&
+      area.y === 0 &&
+      area.width === projection.size.width &&
+      area.height === projection.size.height;
+    element("game-size").textContent =
+      `ゲーム領域 ${fullImage ? "画像全体" : `${area.width} × ${area.height} px`}（${(area.width / area.height).toFixed(3)}:1）`;
+    element("game-size").hidden = false;
+  }
   renderSavedReference();
   for (const button of document.querySelectorAll<HTMLButtonElement>(
     "[data-tool]",
@@ -365,6 +400,7 @@ function editDocument(edit: Edit) {
     const next = applyEdit(history.present, edit);
     if (
       edit.type !== "calibration" &&
+      edit.type !== "render-area" &&
       projection &&
       next.reference &&
       !circleValid(
@@ -375,7 +411,11 @@ function editDocument(edit: Edit) {
     )
       throw new Error("基準円がカメラ前方に収まりません。");
     history = commit(history, next);
-    if (edit.type === "calibration" || edit.type === "reset-reference") {
+    if (
+      edit.type === "calibration" ||
+      edit.type === "reset-reference" ||
+      edit.type === "render-area"
+    ) {
       referenceStart = null;
       measureStart = null;
       pendingGuide = null;
@@ -383,8 +423,14 @@ function editDocument(edit: Edit) {
     }
     showError("");
     refresh();
+    if (edit.type === "render-area")
+      status("ゲーム領域を更新しました。基準円の位置と形を確認してください。");
+    if (edit.type === "confirm-area")
+      status("ゲーム領域を確認済みにしました。");
+    return true;
   } catch (e) {
     showError(e);
+    return false;
   }
 }
 function setTool(next: Tool) {
@@ -425,6 +471,7 @@ function addMeasurement(a: Endpoint, b: Endpoint) {
 }
 function performHistory(direction: "undo" | "redo") {
   finishDrag(true);
+  panels.cancelArea();
   referenceStart = null;
   measureStart = null;
   cursor = null;
@@ -843,6 +890,7 @@ document.addEventListener("keydown", (event) => {
     return;
   if (event.key === "Escape") {
     event.preventDefault();
+    panels.cancelArea();
     finishDrag(true);
     referenceStart = null;
     measureStart = null;
@@ -950,6 +998,7 @@ async function openFiles(files: FileList | File[]) {
         applicationError = e instanceof Error ? e.message : String(e);
       }
     }
+    doc = { ...doc, renderArea: automaticRenderArea(next, next.renderArea) };
     history = newHistory(doc);
     initialDocument = doc;
     exportName = "";
@@ -978,10 +1027,6 @@ async function openFiles(files: FileList | File[]) {
     }
     element("image-size").textContent =
       `画像 ${next.width} × ${next.height} px`;
-    const area = next.renderArea;
-    element("game-size").textContent =
-      `ゲーム領域 ${area.width} × ${area.height} px（${(area.width / area.height).toFixed(3)}:1）`;
-    element("game-size").hidden = false;
     view.setImage(next);
     if (previous) URL.revokeObjectURL(previous.url);
     status(
@@ -1100,7 +1145,11 @@ element("save-reference").addEventListener("click", () => {
   try {
     const preset = referencePreset(history.present);
     parseReferencePreset(JSON.stringify(preset));
-    documentFromPreset(preset, resource, resource.renderArea);
+    documentFromPreset(
+      preset,
+      resource,
+      history.present.renderArea?.bounds ?? resource.renderArea,
+    );
     localStorage.setItem(presetKey, JSON.stringify(preset));
     savedPreset = preset;
     savedExists = true;
@@ -1128,7 +1177,7 @@ element("reset-reference").addEventListener("click", () => {
   editDocument({
     type: "reset-reference",
     size: resource,
-    renderArea: resource.renderArea,
+    renderArea: history.present.renderArea?.bounds ?? resource.renderArea,
   });
 });
 window.addEventListener("storage", (event) => {

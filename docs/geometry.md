@@ -34,12 +34,19 @@ or blue patterned borders. Similar opposite borders between 1% and 22% of the
 image dimension are accepted; ambiguous/asymmetric borders retain the full
 image on that axis. If horizontal detection fails, a blue-band fallback samples
 the outer quarters of each row, ignoring the central home indicator. It requires
-at least 70% blue pixels in those samples and low color variance, and searches
+at least 70% blue pixels in those samples after rejecting RGB outliers more than
+32 from the per-channel median. It then requires low color variance, and searches
 past at most 4% of image height in outer chrome for paired bands of similar thickness.
 Sampling is bounded at 256 × 1024 pixels and the temporary Canvas is released.
 No image is uploaded. Resolution independence requires the correct render area
-and the shared-camera assumptions. Large player frames or ambiguous bands remain
-unsupported; there is currently no manual area override.
+and the shared-camera assumptions. Large player frames or ambiguous bands need
+manual bounds. A full-image automatic result is a fallback, not proof of no borders.
+The document stores the effective bounds, their source (`auto`, `manual`, `full`,
+or `fallback`), and a separate `confirmed` flag together with the ground data.
+Every new image starts unconfirmed, including successfully detected bands. The image resource keeps the original
+automatic result for restoring automatic mode. The reference panel provides integer
+top/bottom/left/right insets, validated to leave at least one pixel on each axis.
+Draft bounds only draw a preview; they never change projection or export.
 See [the measurement guide](measurement.md) for observed failures and diagnostic steps.
 
 For detected render area `(x, y, width, height)` and normalized principal `(u,v)`:
@@ -117,12 +124,14 @@ group has no center; its dependent objects remain suspended until it has members
 ## Transactions and export
 
 Advanced settings expose the camera parameters in the reference panel. A calibration
-edit reprojects pins and free centers through their old image positions into the new
+or render-area edit reprojects pins and free centers through their old image positions into the new
 Ground plane. The reference circle keeps its projected center and uses the distance
 to its remapped old +X rim point as its new radius; its full outline is not preserved.
 Known Game radii remain unchanged, and group centers and scale are derived again.
-Invalid point mappings or reference circles reject the entire edit. Calibration and
-remapped geometry share one history snapshot, including Undo/Redo. The projection is
+Invalid point mappings or reference circles reject the entire edit. Calibration,
+render-area bounds/source and remapped geometry share one history snapshot, including Undo/Redo.
+Source-only changes skip remapping. Out-of-area anchors remain stored but annotations
+are clipped; invalid ground mappings reject the whole edit. The projection is
 rebuilt from the current document for display and export. Loading another image uses
 the explicitly saved reference circle and camera, or defaults if none is usable.
 The saved preset contains no image dimensions or render area. It must pass schema,
@@ -130,7 +139,16 @@ numeric, forward-circle and in-frame-center checks before becoming the new docum
 initial state. Automatic application does not create an Undo step or count as unsaved
 editing. Resetting the current reference removes the old circle before remapping the
 remaining anchors to the default camera, in one reversible edit. Preset storage is
-independent of document history. Hiding advanced settings only hides controls.
+independent of document history. Resetting the reference preserves the current area,
+and saving a reference validates it against that effective area. Hiding advanced
+settings only hides controls. Area controls use a native disclosure, initially collapsed.
+Unconfirmed areas show a compact red notice below the image dimensions, even when
+the reference panel closes. OK marks the current bounds confirmed without remapping
+geometry; applying automatic, manual or full-image bounds also confirms them. The
+confirmation flag participates in history but alone does not trigger a discard-edits
+prompt on image replacement. The settings button opens both disclosures and focuses
+the first area input. Full-image bounds display "画像全体" with the aspect ratio instead of
+repeating pixel dimensions. Editing and PNG export remain available.
 
 `applyEdit` is a pure transition. A drag previews changes against its starting
 document, commits once on release, and discards them on Escape/capture loss/resize.

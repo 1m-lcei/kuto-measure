@@ -31,6 +31,7 @@ export function detectRenderArea(
       end = horizontal ? right : bottom;
     const sums = [0, 0, 0],
       squares = [0, 0, 0];
+    const samples: number[][] = [];
     let count = 0;
     for (let i = start; i < end; i++) {
       // Sample both sides, avoiding the central home indicator.
@@ -49,10 +50,35 @@ export function detectRenderArea(
       )
         continue;
       count++;
+      if (blueOnly)
+        samples.push([data[offset], data[offset + 1], data[offset + 2]]);
       for (let channel = 0; channel < 3; channel++) {
         const value = data[offset + channel];
         sums[channel] += value;
         squares[channel] += value * value;
+      }
+    }
+    if (blueOnly && samples.length) {
+      // ponytail: reject small cursor overlays; large/ambiguous frames need manual bounds.
+      const median = [0, 1, 2].map(
+        (channel) =>
+          samples.map((color) => color[channel]).sort((a, b) => a - b)[
+            Math.floor(samples.length / 2)
+          ],
+      );
+      count = 0;
+      sums.fill(0);
+      squares.fill(0);
+      for (const color of samples) {
+        if (
+          color.some((value, channel) => Math.abs(value - median[channel]) > 32)
+        )
+          continue;
+        count++;
+        for (let channel = 0; channel < 3; channel++) {
+          sums[channel] += color[channel];
+          squares[channel] += color[channel] ** 2;
+        }
       }
     }
     if (!count || (blueOnly && count < (end - start) * 0.5 * 0.7)) return null;

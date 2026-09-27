@@ -99,15 +99,21 @@
           <!-- biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-operated image workspace supports arrows and Enter -->
           <div id="viewport" role="application" tabindex="0" aria-label="画像表示領域。矢印キーとEnterで作成できます。">
             <div id="empty">
-              <h2>スクリーンショットを開く</h2>
-              <p>ここへ画像をドロップ、または上の「画像を開く」から選択</p>
-              <span class="file-types">PNG · JPEG · WEBP</span>
-              <div class="privacy"><span></span>ブラウザ内だけで処理</div>
-              <div class="empty-steps">
-                <span><b>01</b> 基準円を合わせる</span>
-                <span><b>02</b> ピンを置く</span>
-                <span><b>03</b> 距離を測る</span>
+              <div class="empty-intro">
+                <h2>スクリーンショットを開く</h2>
+                <p>ここへ画像をドロップ、または上の「画像を開く」から選択</p>
+                <span class="file-types">PNG · JPEG · WEBP</span>
+                <div class="privacy"><span></span>ブラウザ内だけで処理</div>
+                <div class="empty-steps">
+                  <span><b>01</b> 基準円を合わせる</span>
+                  <span><b>02</b> ピンを置く</span>
+                  <span><b>03</b> 距離を測る</span>
+                </div>
               </div>
+              <ul class="screenshot-hint">
+                <li>ゲーム画面全体のスクリーンショット画像を使用してください（PC版の場合、F12キーで保存されるもの）</li>
+                <li>他アプリケーションやカーソルが映っていると、正しく測定できない場合があります。</li>
+              </ul>
             </div>
             <div id="stage" hidden>
               <img id="image" alt="" draggable="false">
@@ -117,9 +123,21 @@
             </div>
           </div>
           <div class="canvas-footer">
-            <div class="image-info">
-              <span id="image-size">画像未選択</span>
-              <span id="game-size" title="アスペクト比は幅:高さ（小数第3位まで）" hidden></span>
+            <div class="image-metadata">
+              <div class="image-info">
+                <span id="image-size">画像未選択</span>
+                <span id="game-size" title="アスペクト比は幅:高さ（小数第3位まで）" hidden></span>
+              </div>
+              <div id="area-warning" class="area-warning" hidden>
+                <p id="area-warning-text" role="status" aria-live="polite" aria-atomic="true">ゲーム領域が正しく判定されていない場合、設定の必要があります</p>
+                <button id="area-confirm" type="button" aria-label="問題なし：ゲーム領域を確認済みにする">
+                  <svg aria-hidden="true" width="14" height="14">
+                    <use href="/icons.svg#check" />
+                  </svg>
+                  問題なし
+                </button>
+                <button id="area-open" type="button" aria-controls="game-area">ゲーム領域を設定</button>
+              </div>
             </div>
             <div class="zoom-tools">
               <button id="fit" type="button" class="icon-button" aria-label="全体表示" title="全体表示">
@@ -136,13 +154,105 @@
           <details id="reference-panel" class="inspector" open>
             <summary>基準パネル <span>距離の設定</span></summary>
             <div class="inspector-body">
+              <details id="game-area" class="game-area">
+                <summary>ゲーム領域</summary>
+                <p id="area-state">
+                  <span id="area-source">
+                    <span data-state="none">画像未選択</span>
+                    <span data-state="auto" hidden>ゲーム領域を自動検出</span>
+                    <span data-state="manual" hidden>ゲーム領域を手動設定</span>
+                    <span data-state="full" hidden>画像全体を使用</span>
+                  </span>
+                  <span id="area-confirmation" hidden>
+                    <span data-state="pending" hidden>（要確認）</span>
+                    <span data-state="confirmed" hidden>（確認済み）</span>
+                  </span>
+                </p>
+                <p class="muted" id="area-hint">ゲーム映像の外側にある帯の幅を、元画像のpx単位で指定します。</p>
+                <form id="area-form">
+                  <fieldset id="area-fields" disabled>
+                    <legend class="sr-only">上下左右の除外幅</legend>
+                    <div class="endpoint-fields">
+                      <label
+                        >上（px）<input
+                          id="area-top"
+                          name="top"
+                          type="number"
+                          min="0"
+                          step="1"
+                          value="0"
+                          required
+                          aria-describedby="area-hint area-error"
+                        ></label
+                      >
+                      <label
+                        >下（px）<input
+                          id="area-bottom"
+                          name="bottom"
+                          type="number"
+                          min="0"
+                          step="1"
+                          value="0"
+                          required
+                          aria-describedby="area-hint area-error"
+                        ></label
+                      >
+                      <label
+                        >左（px）<input
+                          id="area-left"
+                          name="left"
+                          type="number"
+                          min="0"
+                          step="1"
+                          value="0"
+                          required
+                          aria-describedby="area-hint area-error"
+                        ></label
+                      >
+                      <label
+                        >右（px）<input
+                          id="area-right"
+                          name="right"
+                          type="number"
+                          min="0"
+                          step="1"
+                          value="0"
+                          required
+                          aria-describedby="area-hint area-error"
+                        ></label
+                      >
+                    </div>
+                    <p id="area-error" class="detail danger" role="alert"></p>
+                    <p id="area-draft" class="muted" hidden>入力は未適用です。有効な範囲を破線で表示します。「適用」で測定に反映します。</p>
+                    <div class="area-actions">
+                      <button id="area-apply" type="submit" class="primary">適用</button>
+                      <button id="area-cancel" type="button">取消</button>
+                    </div>
+                    <button id="area-auto" type="button" class="wide">自動検出を適用</button>
+                    <button id="area-full" type="button" class="wide">画面全体を適用</button>
+                  </fieldset>
+                </form>
+                <p class="muted">
+                  変更後は基準円の形を確認してください。領域外の注釈は保持されますが、表示・PNGでは隠れます。領域設定はこの画像だけに適用します。
+                </p>
+              </details>
               <section class="scale-card">
                 <span class="eyebrow">距離スケール</span>
                 <div class="scale-title">
                   <span class="scale-dot"></span>
-                  <strong id="scale-state">距離スケール未設定</strong>
+                  <strong id="scale-state">
+                    <span data-state="unset">距離スケール未設定</span>
+                    <span data-state="absolute" hidden>距離スケール設定済み</span>
+                    <span data-state="relative" hidden>相対距離</span>
+                    <span data-state="invalid" hidden>投影を設定できません</span>
+                  </strong>
                 </div>
-                <p id="scale-hint">基準円をゲーム内の円に合わせ、その半径を入力してください。</p>
+                <p id="scale-hint">
+                  <span data-state="unset">基準円をゲーム内の円に合わせ、その半径を入力してください。</span>
+                  <span data-state="absolute" hidden>地面上の距離をゲーム内の数値で表示しています。</span>
+                  <span data-state="relative" hidden>最初の測距線を1として、地面上の距離を表示しています。</span>
+                  <span data-state="invalid" hidden>キャリブレーションの設定を確認してください。</span>
+                </p>
                 <label>
                   基準円の半径
                   <input id="reference-radius" type="number" min="0" step="any" placeholder="例：500" disabled>
@@ -154,13 +264,27 @@
               </section>
               <section class="saved-reference" aria-labelledby="saved-reference-title">
                 <h2 id="saved-reference-title">ブラウザに保存した基準</h2>
-                <p id="saved-reference-state" role="status"></p>
+                <p id="saved-reference-state" role="status">
+                  <span data-state="none">保存した基準はありません</span>
+                  <span data-state="invalid" hidden>保存した基準は使用できません</span>
+                  <span data-state="error" hidden>保存した基準を確認できません</span>
+                  <span data-state="ready" hidden>次に開く画像へ自動適用します</span>
+                  <span data-state="unused" hidden>この画像では保存した基準を使用していません</span>
+                  <span data-state="active" hidden>保存した基準を使用中</span>
+                  <span data-state="changed" hidden>現在の基準は保存内容と異なります</span>
+                </p>
                 <p id="saved-reference-error" role="alert" class="detail"></p>
                 <details id="saved-reference-options">
                   <summary>保存・リセットの操作</summary>
                   <p id="saved-reference-detail" class="muted"></p>
-                  <button id="save-reference" type="button" class="wide" disabled>現在の基準を保存</button>
-                  <p id="save-reference-hint" class="muted">先に基準円のゲーム内半径を設定してください。</p>
+                  <button id="save-reference" type="button" class="wide" disabled>
+                    <span data-state="new">現在の基準を保存</span>
+                    <span data-state="overwrite" hidden>現在の基準で上書き</span>
+                  </button>
+                  <p id="save-reference-hint" class="muted">
+                    <span data-state="unavailable">先に基準円のゲーム内半径を設定してください。</span>
+                    <span data-state="available" hidden>確定済みの円とカメラ設定を保存します。調整後は明示的に上書きしてください。</span>
+                  </p>
                   <button id="delete-saved-reference" type="button" class="wide" disabled>保存した基準を削除</button>
                   <p class="muted">円とカメラ設定を1件保存し、次に開く画像へ自動適用します。同じ撮影条件の画像に使用し、円の位置と大きさを確認してください。</p>
                   <p class="muted">このブラウザ・配信元だけに保存され、サイトデータの削除等で失われます。</p>
@@ -211,7 +335,14 @@
                   <h2>選択中の対象</h2>
                   <button id="delete" class="danger" type="button" disabled>削除</button>
                 </div>
-                <p id="selection-title" class="muted">対象を選択すると編集できます。</p>
+                <p id="selection-title" class="muted">
+                  <span data-state="none">対象を選択すると編集できます。</span>
+                  <span data-state="pin" hidden>ピン</span>
+                  <span data-state="group" hidden>グループ</span>
+                  <span data-state="measurement" hidden>測距線</span>
+                  <span data-state="guide" hidden>補助円</span>
+                  <span data-state="reference" hidden>基準円</span>
+                </p>
                 <label id="name-row" hidden>
                   名前
                   <input id="object-name" type="text">
@@ -245,9 +376,8 @@
                   <h2>オブジェクト <span id="object-count">0</span></h2>
                   <button id="add-group" type="button">＋ グループ</button>
                 </div>
-                <div id="object-list">
-                  <p class="muted">ピン・円・測距線がここに並びます。</p>
-                </div>
+                <div id="object-list"></div>
+                <p id="object-empty" class="muted">ピン・円・測距線がここに並びます。</p>
               </section>
             </div>
           </details>
@@ -287,7 +417,10 @@
       </p>
       <h3>測定の前提</h3>
       <p>
-        地面は一枚の平面、カメラは共通という前提です。画像の帯を自動判定し、描画領域の高さに合わせて投影を計算します。解像度ごとの設定は不要です。帯が判別できない場合は画像全体を使います。坂・高低差・任意の切り抜き・ゲーム側でのカメラ変更には対応しません。
+        地面は一枚の平面、カメラは共通という前提です。画像の帯を自動判定し、ゲーム領域の高さに合わせて投影を計算します。帯を判別できない場合は画像全体で仮計算します。画像を開いたら自動検出の成否にかかわらず境界を確認し、正しければ画像サイズ下の「OK」を押してください。修正する場合は基準パネル先頭で上下左右の除外幅を指定するか、「自動検出を適用」「画面全体を適用」を選んでください。坂・高低差・任意の切り抜き・ゲーム側でのカメラ変更には対応しません。
+      </p>
+      <p>
+        ゲーム領域の入力中は破線でプレビューし、「適用」で測定に反映します。「取消」またはEscapeで入力を戻せます。ピンの画像上の位置は保ちますが、基準円の形と測距値は変わるため確認してください。領域外の注釈は削除せず非表示にします。Undo／Redoに対応し、領域設定は保存した基準には含めません。赤い境界線と破線はPNGに含まれません。
       </p>
       <p>
         基準円は距離スケールだけを決めます。半径の設定後は基準パネルを閉じます（オプションで解除できます）。未設定時は最初の測距線を1とする相対距離を表示し、その線を動かすと比率も更新します。削除時は次の線を基準にします。最初の線が長さ0、または端点のグループが空の場合は距離スケール未設定です。初期カメラ値は推定値です。
