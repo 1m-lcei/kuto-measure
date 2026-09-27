@@ -316,7 +316,7 @@ export function renderAnnotations(
     const draft = o.areaPreview;
     const rect = `x="${draft.x}" y="${draft.y}" width="${draft.width}" height="${draft.height}"`;
     controls.push(
-      `<g class="area-preview" pointer-events="none" role="img" aria-label="未適用のゲーム領域"><title>赤い破線の内側が適用予定のゲーム領域です。暗い部分は除外予定です。</title><path d="M0,0H${p.size.width}V${p.size.height}H0ZM${draft.x},${draft.y}h${draft.width}v${draft.height}h${-draft.width}Z" fill="#000" fill-opacity="0.3" fill-rule="evenodd"/><rect ${rect} ${stroke("#fff", 4)} stroke-dasharray="8 5"/><rect class="area-preview-boundary" ${rect} ${stroke("#ef4444", 2)} stroke-dasharray="8 5"/></g>`,
+      `<g class="area-preview" pointer-events="none" role="img" aria-label="未適用のゲーム領域"><title>赤い破線の内側が適用予定のゲーム領域です。暗い部分は除外予定です。</title><path d="M0,0H${p.size.width}V${p.size.height}H0ZM${draft.x},${draft.y}h${draft.width}v${draft.height}h${-draft.width}Z" fill="#000" fill-opacity="0.3" fill-rule="evenodd"/><rect class="area-preview-boundary" ${rect} ${stroke("#ef4444", 1)} stroke-dasharray="8 5"/></g>`,
     );
   }
   const layout = layoutLabels(labels, area, z, obstacles, o.measureLabel);
