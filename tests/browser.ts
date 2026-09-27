@@ -5,6 +5,7 @@ import { chromium, firefox, type Page, webkit } from "playwright";
 import { expect } from "playwright/test";
 import { checkGameArea } from "./game-area";
 import { checkInteractions } from "./interactions";
+import { checkProject } from "./project";
 
 // Serve the actual production artifact under a project-site path; no app test hooks.
 const root = resolve("dist");
@@ -875,6 +876,13 @@ try {
       ).toBeHidden();
       await checkInteractions(page, name, await imagePayload(page));
       await checkGameArea(page, name, await imagePayload(page));
+      const projectPage = await context.newPage();
+      try {
+        await projectPage.goto(`http://127.0.0.1:${server.port}/nested/`);
+        await checkProject(projectPage, name, await imagePayload(projectPage));
+      } finally {
+        await projectPage.close();
+      }
       assert.deepEqual(errors, []);
       console.log(`${name}: passed`);
     } catch (e) {

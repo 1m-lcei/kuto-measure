@@ -45,6 +45,7 @@ import {
   undo,
 } from "./model";
 import { createPanels, element, showState } from "./panels";
+import { fitProjectArea, parseProject, serializeProject } from "./project";
 import { renderAnnotations } from "./render";
 import { createViewport } from "./viewport";
 
@@ -370,6 +371,8 @@ function refresh() {
     element<HTMLButtonElement>(id).disabled = !resource;
   element<HTMLButtonElement>("export").disabled =
     !resource || exporting || loading;
+  for (const id of ["save-project", "load-project"])
+    element<HTMLButtonElement>(id).disabled = !resource || loading;
   viewport.dataset.mode = tool;
   viewport.classList.toggle("pan-ready", space);
   viewport.classList.toggle("panning", !!drag?.pan);
@@ -1054,6 +1057,87 @@ async function openFiles(files: FileList | File[]) {
   }
 }
 const fileInput = element<HTMLInputElement>("file");
+element("save-project").addEventListener("click", () => {
+  if (!resource || loading) return;
+  finishDrag(true);
+  try {
+    download(
+      new Blob([serializeProject(history.present, resource)], {
+        type: "application/json",
+      }),
+      `${resource.name.replace(/\.[^.]+$/, "")}-measure.json`,
+    );
+    element("header-menu").hidePopover();
+    showError("");
+    status("編集JSONのダウンロードを開始しました。");
+  } catch (e) {
+    showError(e);
+  }
+});
+const projectInput = element<HTMLInputElement>("project-file");
+element("load-project").addEventListener("click", () => {
+  if (resource && !loading) projectInput.click();
+});
+let projectRequest = 0;
+projectInput.addEventListener("change", async () => {
+  const file = projectInput.files?.[0];
+  projectInput.value = "";
+  if (!file || !resource || loading) return;
+  const source = resource,
+    imageRequest = loadRequest,
+    request = ++projectRequest;
+  try {
+    const saved = parseProject(await file.text());
+    if (
+      source !== resource ||
+      imageRequest !== loadRequest ||
+      request !== projectRequest ||
+      loading
+    )
+      return;
+    const mismatch =
+      saved.imageSize.width !== source.width ||
+      saved.imageSize.height !== source.height;
+    if (
+      mismatch &&
+      !window.confirm(
+        `画像サイズが異なります。\n保存時：${saved.imageSize.width} × ${saved.imageSize.height} px\n現在：${source.width} × ${source.height} px\nゲーム領域を画像サイズの比率に合わせて、現在の編集を置き換えて読み込みますか？`,
+      )
+    )
+      return;
+    if (
+      !mismatch &&
+      hasEdits() &&
+      !window.confirm(
+        "現在の編集内容をJSONの内容に置き換えますか？（元に戻すことができます）",
+      )
+    )
+      return;
+    const next = fitProjectArea(saved.document, saved.imageSize, source);
+    buildProjection(
+      next.calibration,
+      source,
+      next.renderArea?.bounds ?? source.renderArea,
+    );
+    finishDrag(true);
+    panels.cancelArea();
+    history = commit(history, next);
+    selection = null;
+    setTool("select");
+    element("header-menu").hidePopover();
+    showError("");
+    status(
+      "編集JSONを読み込みました。位置とゲーム領域を確認してください。元に戻すこともできます。",
+    );
+  } catch (e) {
+    if (
+      source === resource &&
+      imageRequest === loadRequest &&
+      request === projectRequest
+    )
+      showError(e);
+  }
+});
 fileInput.addEventListener("change", () => {
   if (fileInput.files) void openFiles(fileInput.files);
   fileInput.value = "";

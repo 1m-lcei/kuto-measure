@@ -41,6 +41,12 @@
           <svg aria-hidden="true"><use href="/icons.svg#menu" /></svg>
         </button>
         <section id="header-menu" popover="auto" aria-label="メニュー">
+          <div class="menu-section">
+            <button id="save-project" class="menu-item" type="button" disabled>編集をJSONで保存</button>
+            <button id="load-project" class="menu-item" type="button" disabled>編集JSONを読み込む</button>
+            <input id="project-file" type="file" accept=".json,application/json" aria-label="編集JSON" hidden>
+            <p class="muted">画像を開いてから読み込みます。画像本体はJSONに含みません。</p>
+          </div>
           <fieldset class="theme-settings menu-section">
             <legend>テーマ</legend>
             <div class="theme-options">
@@ -374,7 +380,7 @@
         PNGは元解像度で画像全体を書き出します。ラベルは元解像度で配置し直し、選択表示・薄表示は含めません。対応ブラウザではOSの保存ダイアログで名前と保存先を指定できます。非対応の場合は通常のダウンロードを開始し、保存ダイアログの表示や保存先はブラウザの設定に従います。
       </p>
       <p>
-        基準パネルの「保存・リセットの操作」で円とカメラ設定を1件保存し、次の画像から自動適用できます。同じ撮影条件で使用し、円の位置と大きさを確認してください。調整後の保存は明示的な上書きが必要です。画像やピン等の編集全体は保存せず、タブ終了・画像切替で失われます。
+        メニューの「編集をJSONで保存」で編集内容と画像サイズを保存できます。画像本体は含みません。画像を開いて「編集JSONを読み込む」で復元します。サイズが違う場合も、確認後に読み込めます。ゲーム領域は画像サイズの比率に合わせるため、位置を確認してください。読み込みはUndo／Redoに対応します。未保存の編集はタブ終了・画像切替で失われます。基準パネルの「保存・リセットの操作」では円とカメラ設定をブラウザに1件保存し、次の画像から自動適用できます。
       </p>
     </dialog>
     <dialog id="about" aria-labelledby="about-title" closedby="any">

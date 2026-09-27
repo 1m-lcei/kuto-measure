@@ -1051,7 +1051,8 @@
     border: 0;
     border-block-end: 1px solid var(--border);
   }
-  .theme-settings legend {
+  .theme-settings legend,
+  .menu-section > .muted {
     padding-inline: 12px;
   }
   .theme-options {

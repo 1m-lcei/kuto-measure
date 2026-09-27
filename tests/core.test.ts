@@ -38,7 +38,97 @@ import {
   undo,
   validateRenderArea,
 } from "../src/model";
+import { fitProjectArea, parseProject, serializeProject } from "../src/project";
 import { renderAnnotations } from "../src/render";
+
+test("editing JSON roundtrips, rejects malformed data, and fits smaller images", () => {
+  const size = { width: 1536, height: 900 };
+  let doc = {
+    ...populated(),
+    renderArea: {
+      bounds: { x: 12, y: 90, width: 1500, height: 708 },
+      source: "manual" as const,
+      confirmed: true,
+    },
+  } as AnalysisDocument;
+  doc = applyEdit(doc, {
+    type: "measurement",
+    value: { id: "m", from: endpoint("a"), to: { kind: "group", id: "g" } },
+  });
+  for (const [id, center] of [
+    ["free", { kind: "point", point: groundPoint(0.1, 0.1) }],
+    ["linked", endpoint("b")],
+  ] as const)
+    doc = applyEdit(doc, {
+      type: "guide",
+      value: { id, center, radiusGame: gameDistance(100) },
+    });
+  const raw = serializeProject(doc, size);
+  expect(parseProject(raw)).toEqual({ imageSize: size, document: doc });
+  expect(
+    parseProject(serializeProject(emptyDocument(), size)).document,
+  ).toEqual(emptyDocument());
+  expect(fitProjectArea(doc, size, size)).toBe(doc);
+  const small = { width: 768, height: 450 };
+  const fitted = fitProjectArea(doc, size, small);
+  expect(fitted.renderArea?.bounds).toEqual({
+    x: 6,
+    y: 45,
+    width: 750,
+    height: 354,
+  });
+  expect(fitted.renderArea?.confirmed).toBe(false);
+  expect(fitted.pins).toBe(doc.pins);
+  buildProjection(fitted.calibration, small, fitted.renderArea?.bounds);
+  const tiny = fitProjectArea(doc, size, { width: 1, height: 1 });
+  assert(tiny.renderArea);
+  validateRenderArea(tiny.renderArea.bounds, { width: 1, height: 1 });
+  expect(undo(commit(newHistory(doc), fitted)).present).toEqual(doc);
+  for (const mutate of [
+    (v: ReturnType<typeof JSON.parse>) => {
+      v.version = 2;
+    },
+    (v: ReturnType<typeof JSON.parse>) => {
+      v.imageSize.width = 0;
+    },
+    (v: ReturnType<typeof JSON.parse>) => {
+      v.document.pins[0].point.x = "0";
+    },
+    (v: ReturnType<typeof JSON.parse>) => {
+      v.document.pins[0].groupId = "missing";
+    },
+    (v: ReturnType<typeof JSON.parse>) => {
+      v.document.pins.push(v.document.pins[0]);
+    },
+    (v: ReturnType<typeof JSON.parse>) => {
+      v.document.measurements[0].from.kind = "reference";
+    },
+    (v: ReturnType<typeof JSON.parse>) => {
+      v.document.guides[0].radiusGame = -1;
+    },
+    (v: ReturnType<typeof JSON.parse>) => {
+      v.document.reference.radiusGround = 0;
+    },
+    (v: ReturnType<typeof JSON.parse>) => {
+      v.document.calibration.verticalFovDegrees = 180;
+    },
+    (v: ReturnType<typeof JSON.parse>) => {
+      v.document.renderArea.bounds.width = 2000;
+    },
+  ]) {
+    const value = JSON.parse(raw);
+    mutate(value);
+    expect(() => parseProject(JSON.stringify(value))).toThrow("編集JSON");
+  }
+  for (const value of [
+    "{",
+    "null",
+    "[]",
+    "{}",
+    raw.replace('"x": 0', '"x": 1e400'),
+  ])
+    expect(() => parseProject(value)).toThrow("編集JSON");
+});
 
 test("saved references are validated, portable across resolution/borders, and reset atomically", () => {
   const original = populated(),
