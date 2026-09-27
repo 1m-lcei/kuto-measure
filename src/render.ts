@@ -308,14 +308,15 @@ export function renderAnnotations(
     area.y > 0 ? `M0,${area.y}H${p.size.width}` : "",
     bottom < p.size.height ? `M0,${bottom}H${p.size.width}` : "",
   ].join("");
-  if (o.interactive && boundary)
+  if (o.interactive && boundary && !o.areaPreview)
     controls.unshift(
       `<path class="excluded-boundary" d="${boundary}" ${stroke("#ef4444", 1)} opacity="0.65" pointer-events="none" role="img" aria-label="ゲーム領域の境界"><title>赤線の外側は測距から除外されています</title></path>`,
     );
   if (o.interactive && o.areaPreview) {
     const draft = o.areaPreview;
+    const rect = `x="${draft.x}" y="${draft.y}" width="${draft.width}" height="${draft.height}"`;
     controls.push(
-      `<rect class="area-preview" x="${draft.x}" y="${draft.y}" width="${draft.width}" height="${draft.height}" ${stroke("#fbbf24", 2)} stroke-dasharray="8 5" pointer-events="none" role="img" aria-label="未適用のゲーム領域"><title>破線は未適用のゲーム領域です</title></rect>`,
+      `<g class="area-preview" pointer-events="none" role="img" aria-label="未適用のゲーム領域"><title>赤い破線の内側が適用予定のゲーム領域です。暗い部分は除外予定です。</title><path d="M0,0H${p.size.width}V${p.size.height}H0ZM${draft.x},${draft.y}h${draft.width}v${draft.height}h${-draft.width}Z" fill="#000" fill-opacity="0.3" fill-rule="evenodd"/><rect ${rect} ${stroke("#fff", 4)} stroke-dasharray="8 5"/><rect class="area-preview-boundary" ${rect} ${stroke("#ef4444", 2)} stroke-dasharray="8 5"/></g>`,
     );
   }
   const layout = layoutLabels(labels, area, z, obstacles, o.measureLabel);

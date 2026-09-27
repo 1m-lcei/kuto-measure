@@ -162,6 +162,25 @@ export async function checkGameArea(
   await expect(inputs[0]).toBeFocused();
   await fill([40, 60, 10, 20]);
   await page.locator(".area-preview").waitFor();
+  const preview = page.locator(".area-preview-boundary");
+  for (const [attr, value] of Object.entries({
+    x: "10",
+    y: "40",
+    width: "1506",
+    height: "609",
+    stroke: "#ef4444",
+    "stroke-dasharray": "8 5",
+    "vector-effect": "non-scaling-stroke",
+  }))
+    await expect(preview).toHaveAttribute(attr, value);
+  await expect(page.locator(".area-preview path")).toHaveAttribute(
+    "fill-rule",
+    "evenodd",
+  );
+  await page.screenshot({
+    path: `test-results/${engine}-game-area-preview.png`,
+    fullPage: true,
+  });
   assert.deepEqual(await clip(), [0, 0, 1536, 709]);
   for (const invalid of ["", "-1", "0.5"]) {
     await inputs[0].fill(invalid);
@@ -250,6 +269,16 @@ export async function checkGameArea(
   await waitSource("manual");
   await expect(inputs[0]).toHaveValue("60");
   assert(appliedPng.equals(await png()));
+  await inputs[0].fill("61");
+  await expect(page.locator(".area-preview-boundary")).toHaveAttribute(
+    "y",
+    "61",
+  );
+  await expect(page.locator(".excluded-boundary")).toHaveCount(0);
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(page.locator(".area-preview")).toHaveCount(0);
+  await expect(page.locator(".excluded-boundary")).toHaveCount(1);
+  await expect(inputs[0]).toHaveValue("60");
   await inputs[0].fill("61");
   await page.getByRole("button", { name: "元に戻す" }).click();
   await waitSource("fallback");

@@ -168,7 +168,9 @@
                     <span data-state="confirmed" hidden>（確認済み）</span>
                   </span>
                 </p>
-                <p class="muted" id="area-hint">ゲーム映像の外側にある帯の幅を、元画像のpx単位で指定します。</p>
+                <p class="muted" id="area-hint">
+                  ゲーム映像の外側にある帯の幅を、元画像のpx単位で指定します。入力すると赤い破線でプレビューします。「適用」で確定します。
+                </p>
                 <form id="area-form">
                   <fieldset id="area-fields" disabled>
                     <legend class="sr-only">上下左右の除外幅</legend>
@@ -223,7 +225,9 @@
                       >
                     </div>
                     <p id="area-error" class="detail danger" role="alert"></p>
-                    <p id="area-draft" class="muted" hidden>入力は未適用です。有効な範囲を破線で表示します。「適用」で測定に反映します。</p>
+                    <p id="area-draft" class="muted" hidden>
+                      プレビュー中（未適用）。赤い破線の内側がゲーム領域、暗い部分が除外予定です。「適用」で確定、「取消」で元に戻します。
+                    </p>
                     <div class="area-actions">
                       <button id="area-apply" type="submit" class="primary">適用</button>
                       <button id="area-cancel" type="button">取消</button>
