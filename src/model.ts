@@ -8,11 +8,13 @@ import {
   type GameDistance,
   type GroundLength,
   type GroundPoint,
+  gameDistance,
   groundLength,
   groundPoint,
   groundToImage,
   type ImageRect,
   imageToGround,
+  inRect,
   positive,
   type Size,
 } from "./geometry";
@@ -67,6 +69,109 @@ export const emptyDocument = (): AnalysisDocument => ({
   guides: [],
   reference: null,
 });
+export interface ReferencePreset {
+  version: 1;
+  calibration: CameraCalibration;
+  reference: ReferenceCircle & { radiusGame: GameDistance };
+}
+export function referencePreset(doc: AnalysisDocument): ReferencePreset {
+  const r = doc.reference,
+    c = doc.calibration;
+  if (!r?.radiusGame)
+    throw new Error("先に基準円のゲーム内半径を設定してください。");
+  return {
+    version: 1,
+    calibration: {
+      elevationDegrees: c.elevationDegrees,
+      rollDegrees: c.rollDegrees,
+      verticalFovDegrees: c.verticalFovDegrees,
+      principalPoint: { x: c.principalPoint.x, y: c.principalPoint.y },
+    },
+    reference: {
+      center: groundPoint(r.center.x, r.center.y),
+      radiusGround: r.radiusGround,
+      radiusGame: r.radiusGame,
+    },
+  };
+}
+export function parseReferencePreset(raw: string): ReferencePreset {
+  const invalid = () =>
+    new Error(
+      "保存した基準の形式または数値が不正です。削除して保存し直してください。",
+    );
+  const record = (value: unknown): Record<string, unknown> => {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      throw invalid();
+    return value as Record<string, unknown>;
+  };
+  const number = (value: unknown): number => {
+    if (typeof value !== "number" || !Number.isFinite(value)) throw invalid();
+    return value;
+  };
+  try {
+    const value = record(JSON.parse(raw));
+    if (value.version !== 1) throw invalid();
+    const c = record(value.calibration),
+      principal = record(c.principalPoint);
+    const r = record(value.reference),
+      center = record(r.center);
+    if (center.space !== "ground") throw invalid();
+    const doc = applyEdit(
+      {
+        ...emptyDocument(),
+        calibration: {
+          elevationDegrees: number(c.elevationDegrees),
+          rollDegrees: number(c.rollDegrees),
+          verticalFovDegrees: number(c.verticalFovDegrees),
+          principalPoint: { x: number(principal.x), y: number(principal.y) },
+        },
+      },
+      {
+        type: "reference",
+        value: {
+          center: groundPoint(number(center.x), number(center.y)),
+          radiusGround: groundLength(number(r.radiusGround)),
+          radiusGame: gameDistance(number(r.radiusGame)),
+        },
+      },
+    );
+    const p = buildProjection(doc.calibration, { width: 1, height: 1 });
+    const preset = referencePreset(doc);
+    if (!circleValid(preset.reference.center, preset.reference.radiusGround, p))
+      throw invalid();
+    return preset;
+  } catch {
+    throw invalid();
+  }
+}
+export function documentFromPreset(
+  preset: ReferencePreset,
+  size: Size,
+  renderArea: ImageRect,
+): AnalysisDocument {
+  const p = buildProjection(preset.calibration, size, renderArea);
+  const center = groundToImage(preset.reference.center, p);
+  if (
+    !center ||
+    !inRect(center, renderArea) ||
+    !circleValid(preset.reference.center, preset.reference.radiusGround, p)
+  )
+    throw new Error("保存した基準円をこの画像の描画領域に適用できません。");
+  return {
+    ...emptyDocument(),
+    calibration: preset.calibration,
+    reference: preset.reference,
+  };
+}
+export const sameCalibration = (
+  a: CameraCalibration,
+  b: CameraCalibration,
+): boolean =>
+  a.elevationDegrees === b.elevationDegrees &&
+  a.rollDegrees === b.rollDegrees &&
+  a.verticalFovDegrees === b.verticalFovDegrees &&
+  a.principalPoint.x === b.principalPoint.x &&
+  a.principalPoint.y === b.principalPoint.y;
 export function centroid(
   doc: AnalysisDocument,
   id: string,
@@ -131,6 +236,7 @@ export function exists(doc: AnalysisDocument, s: Selection): boolean {
   }
 }
 export type Edit =
+  | { type: "reset-reference"; size: Size; renderArea: ImageRect }
   | {
       type: "calibration";
       value: CameraCalibration;
@@ -166,6 +272,16 @@ function upsert<T extends { id: string }>(
 export function applyEdit(doc: AnalysisDocument, edit: Edit): AnalysisDocument {
   let next: AnalysisDocument;
   switch (edit.type) {
+    case "reset-reference":
+      return applyEdit(
+        { ...doc, reference: null },
+        {
+          type: "calibration",
+          value: DEFAULT_CALIBRATION,
+          size: edit.size,
+          renderArea: edit.renderArea,
+        },
+      );
     case "calibration": {
       const previous = buildProjection(
         doc.calibration,
@@ -177,14 +293,7 @@ export function applyEdit(doc: AnalysisDocument, edit: Edit): AnalysisDocument {
         edit.size,
         edit.renderArea,
       );
-      if (
-        doc.calibration.elevationDegrees === edit.value.elevationDegrees &&
-        doc.calibration.verticalFovDegrees === edit.value.verticalFovDegrees &&
-        doc.calibration.rollDegrees === edit.value.rollDegrees &&
-        doc.calibration.principalPoint.x === edit.value.principalPoint.x &&
-        doc.calibration.principalPoint.y === edit.value.principalPoint.y
-      )
-        return doc;
+      if (sameCalibration(doc.calibration, edit.value)) return doc;
       const remap = (point: GroundPoint): GroundPoint => {
         const image = groundToImage(point, previous);
         const ground = image && imageToGround(image, projection);

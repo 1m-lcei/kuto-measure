@@ -123,8 +123,14 @@ to its remapped old +X rim point as its new radius; its full outline is not pres
 Known Game radii remain unchanged, and group centers and scale are derived again.
 Invalid point mappings or reference circles reject the entire edit. Calibration and
 remapped geometry share one history snapshot, including Undo/Redo. The projection is
-rebuilt from the current document for display and export. Loading another image resets
-calibration. Hiding advanced settings only hides controls; it does not reset values.
+rebuilt from the current document for display and export. Loading another image uses
+the explicitly saved reference circle and camera, or defaults if none is usable.
+The saved preset contains no image dimensions or render area. It must pass schema,
+numeric, forward-circle and in-frame-center checks before becoming the new document's
+initial state. Automatic application does not create an Undo step or count as unsaved
+editing. Resetting the current reference removes the old circle before remapping the
+remaining anchors to the default camera, in one reversible edit. Preset storage is
+independent of document history. Hiding advanced settings only hides controls.
 
 `applyEdit` is a pure transition. A drag previews changes against its starting
 document, commits once on release, and discards them on Escape/capture loss/resize.
@@ -135,6 +141,11 @@ SVG rendering is shared with PNG output. Export freezes the current document,
 renders at zoom 1 without controls, and draws the original raster plus a standalone
 annotation SVG to Canvas. Output dimensions and annotation sizes are independent
 of viewport, pan, zoom, browser DPR and UI theme.
+
+Labels are derived presentation, not measurement coordinates. A bounded greedy layout
+uses measured text bounds in CSS pixels, moving labels and adding non-interactive leader
+lines. PNG runs the same layout at zoom 1. Label clicks select their owners; dragging a
+label never moves its underlying ground point. Hover and pin-tool dimming remain UI-only.
 
 See the executable geometry/state tests and production-browser checks for invariants.
 

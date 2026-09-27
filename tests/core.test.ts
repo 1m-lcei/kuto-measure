@@ -17,22 +17,195 @@ import {
   imageToGround,
   projectCircle,
 } from "../src/geometry";
+import { type Label, layoutLabels, overlapArea } from "../src/labels";
 import {
   type AnalysisDocument,
   applyEdit,
   centroid,
   commit,
+  documentFromPreset,
   type Endpoint,
   emptyDocument,
   formatDistance,
   measuredDistance,
   newHistory,
+  parseReferencePreset,
   redo,
+  referencePreset,
   resolveCenter,
   scaleFactor,
   undo,
 } from "../src/model";
 import { renderAnnotations } from "../src/render";
+
+test("saved references are validated, portable across resolution/borders, and reset atomically", () => {
+  const original = populated(),
+    preset = referencePreset(original);
+  const roundtrip = parseReferencePreset(
+    JSON.stringify({ ...preset, pins: original.pins }),
+  );
+  expect(roundtrip).toEqual(preset);
+  expect(Object.keys(roundtrip)).toEqual([
+    "version",
+    "calibration",
+    "reference",
+  ]);
+  const area = { x: 40, y: 100, width: 3072, height: 1418 };
+  const restored = documentFromPreset(
+    roundtrip,
+    { width: 3152, height: 1618 },
+    area,
+  );
+  expect(restored.pins).toEqual([]);
+  expect(scaleFactor(restored)).toBe(scaleFactor(original));
+  const p = buildProjection(
+    restored.calibration,
+    { width: 3152, height: 1618 },
+    area,
+  );
+  for (const pin of original.pins) {
+    const a = groundToImage(pin.point, projection),
+      b = groundToImage(pin.point, p);
+    assert(a && b);
+    pointClose(b, { x: a.x * 2 + 40, y: a.y * 2 + 100 });
+  }
+  const changed = applyEdit(original, {
+    type: "calibration",
+    value: { ...DEFAULT_CALIBRATION, elevationDegrees: 35, rollDegrees: 7 },
+    size: projection.size,
+    renderArea: projection.renderArea,
+  });
+  const changedProjection = buildProjection(
+    changed.calibration,
+    projection.size,
+  );
+  const reset = applyEdit(changed, {
+    type: "reset-reference",
+    size: projection.size,
+    renderArea: projection.renderArea,
+  });
+  expect(reset.reference).toBeNull();
+  expect(reset.calibration).toEqual(DEFAULT_CALIBRATION);
+  for (const [i, pin] of changed.pins.entries()) {
+    const before = groundToImage(pin.point, changedProjection);
+    assert(before);
+    pointClose(groundToImage(reset.pins[i].point, projection), before);
+  }
+  const h = commit(newHistory(changed), reset);
+  expect(h.past).toHaveLength(1);
+  expect(undo(h).present).toEqual(changed);
+  expect(redo(undo(h)).present).toEqual(reset);
+  expect(referencePreset(original)).toEqual(preset);
+  const bad = {
+    ...changed,
+    pins: [{ ...changed.pins[0], point: groundPoint(0, 100000) }],
+  };
+  expect(() =>
+    applyEdit(bad, {
+      type: "reset-reference",
+      size: projection.size,
+      renderArea: projection.renderArea,
+    }),
+  ).toThrow();
+  expect(bad.reference).toBe(changed.reference);
+  const offscreen = {
+    ...preset,
+    reference: { ...preset.reference, center: groundPoint(100, 0) },
+  };
+  expect(() =>
+    documentFromPreset(offscreen, projection.size, projection.renderArea),
+  ).toThrow();
+  for (const raw of [
+    "{",
+    "null",
+    "[]",
+    JSON.stringify({ ...preset, version: 2 }),
+    ...[
+      { ...preset.reference, radiusGame: null },
+      { ...preset.reference, radiusGame: "500" },
+      { ...preset.reference, radiusGround: 0 },
+      { ...preset.reference, radiusGame: 1e308, radiusGround: 1e-308 },
+      { ...preset.reference, center: { x: 0, y: 0, space: "image" } },
+    ].map((reference) => JSON.stringify({ ...preset, reference })),
+    JSON.stringify({
+      ...preset,
+      calibration: { ...preset.calibration, elevationDegrees: 0 },
+    }),
+  ]) {
+    expect(() => parseReferencePreset(raw)).toThrow();
+  }
+});
+
+test("label packing separates coincident and nearby labels without moving anchors and is bounded", () => {
+  const measure = (text: string) => ({
+    width:
+      [...new Intl.Segmenter("ja", { granularity: "grapheme" }).segment(text)]
+        .length * 12,
+    ascent: 10,
+    descent: 3,
+  });
+  const labels: Label[] = Array.from({ length: 5 }, (_, i) => ({
+    key: `pin:${i}`,
+    text: `ピン${i}`,
+    name: `ピン ${i}`,
+    color: "#fff",
+    anchor: imagePoint(400, 300),
+    dx: 10,
+    dy: -10,
+  }));
+  labels.push({
+    ...labels[0],
+    key: "group:g",
+    text: "近くのグループ",
+    anchor: imagePoint(430, 300),
+  });
+  const before = JSON.stringify(labels),
+    area = { x: 0, y: 0, width: 800, height: 600 };
+  const obstacles = [{ x: 384, y: 284, width: 32, height: 32 }];
+  const result = layoutLabels(labels, area, 1, obstacles, measure);
+  expect(result.crowded).toBe(false);
+  expect(result.boxes).toHaveLength(6);
+  result.boxes.forEach((box, i) => {
+    expect(box.x).toBeGreaterThanOrEqual(4);
+    expect(box.y).toBeGreaterThanOrEqual(4);
+    expect(box.x + box.width).toBeLessThanOrEqual(796);
+    expect(box.y + box.height).toBeLessThanOrEqual(596);
+    for (const other of result.boxes.slice(i + 1))
+      expect(overlapArea(box, other, 4)).toBe(0);
+    for (const obstacle of obstacles)
+      expect(overlapArea(box, obstacle, 4)).toBe(0);
+  });
+  expect(layoutLabels(labels, area, 1, obstacles, measure)).toEqual(result);
+  expect(JSON.stringify(labels)).toBe(before);
+  for (const anchor of [
+    imagePoint(0, 0),
+    imagePoint(800, 0),
+    imagePoint(0, 600),
+    imagePoint(800, 600),
+  ]) {
+    const edge = layoutLabels([{ ...labels[0], anchor }], area, 1, [], measure);
+    expect(edge.crowded).toBe(false);
+    expect(edge.boxes[0].x).toBeGreaterThanOrEqual(4);
+    expect(edge.boxes[0].x + edge.boxes[0].width).toBeLessThanOrEqual(796);
+  }
+  const emoji = "👨‍👩‍👧‍👦";
+  const long = layoutLabels(
+    [{ ...labels[0], text: emoji.repeat(30) }],
+    { ...area, width: 100 },
+    1,
+    [],
+    measure,
+  );
+  expect(long.boxes[0].text).toMatch(/^(👨‍👩‍👧‍👦)*…$/u);
+  expect(
+    layoutLabels(labels, { ...area, width: 1, height: 1 }, 1, [], measure)
+      .crowded,
+  ).toBe(true);
+  expect(
+    layoutLabels(labels, { ...area, width: 70, height: 70 }, 1, [], measure)
+      .crowded,
+  ).toBe(true);
+});
 
 const projection = buildProjection(DEFAULT_CALIBRATION, {
   width: 1536,
@@ -447,6 +620,11 @@ describe("analysis and editing", () => {
         zoom: 1,
         selection: null,
         interactive: false,
+        measureLabel: (text) => ({
+          width: text.length * 8,
+          ascent: 10,
+          descent: 3,
+        }),
       }).markup,
     ).not.toContain("距離スケール未設定");
   });
@@ -650,6 +828,11 @@ describe("analysis and editing", () => {
       zoom: 1,
       selection: { kind: "reference" },
       interactive: false,
+      measureLabel: (text) => ({
+        width: text.length * 8,
+        ascent: 10,
+        descent: 3,
+      }),
     }).markup;
     expect(svg).toContain("&lt;script&gt;");
     expect(svg).not.toContain("<script>");

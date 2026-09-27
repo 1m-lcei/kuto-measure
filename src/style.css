@@ -1,4 +1,47 @@
 @layer base, layout, controls, canvas, panels;
+@layer canvas {
+  #overlay .candidate {
+    filter: drop-shadow(0 0 var(--hover-inner, 1px) #fff)
+      drop-shadow(0 0 var(--hover-outer, 2px) #101828);
+  }
+  #overlay .annotation-label[aria-pressed="true"] .label-hit {
+    fill: #17313e;
+    stroke: #fff;
+  }
+  #overlay .annotation-label:focus-visible .label-hit {
+    stroke: #fff;
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+  }
+  #viewport[data-mode="pin"] #overlay [data-key] {
+    cursor: crosshair;
+  }
+  #overlay .pin-overlap {
+    opacity: 0.35;
+  }
+  #viewport.pan-ready #overlay [data-key],
+  #viewport[data-mode="pan"] #overlay [data-key] {
+    cursor: grab;
+  }
+  #viewport.panning #overlay [data-key] {
+    cursor: grabbing;
+  }
+}
+@layer controls {
+  .saved-reference > p {
+    margin-block: 0.5rem;
+  }
+  #saved-reference-options p {
+    margin-block: 0.5rem;
+  }
+}
+@layer panels {
+  .inspector #saved-reference-options summary {
+    padding: 0.5rem 0;
+    border: 0;
+    font-weight: 400;
+  }
+}
 @layer base {
   :root {
     scrollbar-gutter: stable;

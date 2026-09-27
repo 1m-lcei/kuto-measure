@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { chromium, firefox, type Page, webkit } from "playwright";
+import { checkInteractions } from "./interactions";
 
 // Serve the actual production artifact under a project-site path; no app test hooks.
 const root = resolve("dist");
@@ -132,10 +133,17 @@ try {
       console.error(`${name}: browser launch failed`, error);
       continue;
     }
-    const page = await browser.newPage({
+    const context = await browser.newContext({
       viewport: { width: 1440, height: 1000 },
       deviceScaleFactor: 1,
     });
+    await context.addInitScript(() => {
+      Object.defineProperty(window, "showSaveFilePicker", {
+        configurable: true,
+        value: undefined,
+      });
+    });
+    const page = await context.newPage();
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
     page.on("dialog", (d) => void d.accept());
@@ -219,7 +227,7 @@ try {
       assert(!(await page.locator("#projection-settings").isVisible()));
       assert(
         (
-          await page.locator("#reference-panel summary").textContent()
+          await page.locator("#reference-panel > summary").textContent()
         )?.includes("基準パネル"),
       );
       await page.locator("#menu-trigger").click();
@@ -459,7 +467,7 @@ try {
       await page.keyboard.press("Escape");
       await page.locator("#undo").click();
       assert.equal(await measurement.textContent(), baselineDistance);
-      await page.locator("#reference-panel summary").click();
+      await page.locator("#reference-panel > summary").click();
       await page.locator('[data-tool="guide"]').click();
       await clickImage(page, 500, 400);
       await page.mouse.click(4, 4);
@@ -759,6 +767,7 @@ try {
       await page.reload();
       assert(!(await page.locator("#show-advanced").isChecked()));
       assert(!(await page.locator("#projection-settings").isVisible()));
+      await checkInteractions(page, name, await imagePayload(page));
       assert.deepEqual(errors, []);
       console.log(`${name}: passed`);
     } catch (e) {

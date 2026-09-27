@@ -152,6 +152,22 @@
                   設定時にパネルを閉じる
                 </label>
               </section>
+              <section class="saved-reference" aria-labelledby="saved-reference-title">
+                <h2 id="saved-reference-title">ブラウザに保存した基準</h2>
+                <p id="saved-reference-state" role="status"></p>
+                <p id="saved-reference-error" role="alert" class="detail"></p>
+                <details id="saved-reference-options">
+                  <summary>保存・リセットの操作</summary>
+                  <p id="saved-reference-detail" class="muted"></p>
+                  <button id="save-reference" type="button" class="wide" disabled>現在の基準を保存</button>
+                  <p id="save-reference-hint" class="muted">先に基準円のゲーム内半径を設定してください。</p>
+                  <button id="delete-saved-reference" type="button" class="wide" disabled>保存した基準を削除</button>
+                  <p class="muted">円とカメラ設定を1件保存し、次に開く画像へ自動適用します。同じ撮影条件の画像に使用し、円の位置と大きさを確認してください。</p>
+                  <p class="muted">このブラウザ・配信元だけに保存され、サイトデータの削除等で失われます。</p>
+                  <button id="reset-reference" type="button" class="wide" disabled aria-describedby="reset-reference-hint">この画像の基準をリセット</button>
+                  <p id="reset-reference-hint" class="muted">基準円とカメラ設定を初期化します。ピンの画像上の位置と保存した基準は保持します。</p>
+                </details>
+              </section>
               <form id="projection-settings" hidden>
                 <fieldset id="projection-fields" disabled>
                   <legend>投影パラメータ</legend>
@@ -255,7 +271,7 @@
         </li>
         <li>
           <strong>ピンとグループを作る</strong>
-          <p>「ピン」で連続配置できます。パネルで名前と所属を設定。グループ中心は所属ピンの地面上の平均です。</p>
+          <p>「ピン」でカーソルと重なる既存の注釈だけを薄くして連続配置できます。パネルで名前と所属を設定。グループ中心は所属ピンの地面上の平均です。</p>
         </li>
         <li>
           <strong>測距線と補助円</strong>
@@ -266,6 +282,9 @@
       <p>ホイールでズーム。Space＋ドラッグ／中ボタン／パンモードで移動。タッチでは1本指と倍率ボタンを使います。</p>
       <p>Escapeで取消、Deleteで削除。Ctrl／Cmd＋ZでUndo、Ctrl＋YまたはCtrl／Cmd＋Shift＋ZでRedo。編集は100操作まで戻せます。</p>
       <p>画像領域をフォーカスし、矢印キー＋Enterで作成。選択したピン・ハンドルは矢印キーで1画像px、Shift付きで10px調整します。</p>
+      <p>
+        選択ツールでは対象の輪郭を強調します。重なるラベルは位置をずらし、クリック・タップ・Enter／Spaceで個別選択できます。ラベルのドラッグでは測定点は動きません。密集時は拡大するかオブジェクト一覧を使ってください。
+      </p>
       <h3>測定の前提</h3>
       <p>
         地面は一枚の平面、カメラは共通という前提です。画像の帯を自動判定し、描画領域の高さに合わせて投影を計算します。解像度ごとの設定は不要です。帯が判別できない場合は画像全体を使います。坂・高低差・任意の切り抜き・ゲーム側でのカメラ変更には対応しません。
@@ -273,7 +292,12 @@
       <p>
         基準円は距離スケールだけを決めます。半径の設定後は基準パネルを閉じます（オプションで解除できます）。未設定時は最初の測距線を1とする相対距離を表示し、その線を動かすと比率も更新します。削除時は次の線を基準にします。最初の線が長さ0、または端点のグループが空の場合は距離スケール未設定です。初期カメラ値は推定値です。
       </p>
-      <p>PNGは元解像度で画像全体を書き出します。編集データの保存機能はなく、タブ終了・画像切替で失われます。</p>
+      <p>
+        PNGは元解像度で画像全体を書き出します。ラベルは元解像度で配置し直し、選択表示・薄表示は含めません。対応ブラウザではOSの保存ダイアログで名前と保存先を指定できます。非対応の場合は通常のダウンロードを開始し、保存ダイアログの表示や保存先はブラウザの設定に従います。
+      </p>
+      <p>
+        基準パネルの「保存・リセットの操作」で円とカメラ設定を1件保存し、次の画像から自動適用できます。同じ撮影条件で使用し、円の位置と大きさを確認してください。調整後の保存は明示的な上書きが必要です。画像やピン等の編集全体は保存せず、タブ終了・画像切替で失われます。
+      </p>
     </dialog>
     <dialog id="about" aria-labelledby="about-title" closedby="any">
       <div class="dialog-heading">

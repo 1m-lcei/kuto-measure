@@ -7,6 +7,13 @@ import {
   projectCircle,
 } from "./geometry";
 import {
+  DENSE_LABELS,
+  type Label,
+  layoutLabels,
+  type MeasureLabel,
+  overlapArea,
+} from "./labels";
+import {
   type AnalysisDocument,
   centroid,
   endpointName,
@@ -34,6 +41,8 @@ export interface RenderOptions {
   zoom: number;
   selection: Selection | null;
   interactive: boolean;
+  measureLabel: MeasureLabel;
+  selectLabels?: boolean;
   coarse?: boolean;
   visible?: { left: number; top: number; right: number; bottom: number };
   cursor?: ImagePoint | null;
@@ -47,15 +56,51 @@ export function renderAnnotations(
   const z = o.zoom,
     hit = (o.coarse ? 22 : 16) / z;
   const warnings: string[] = [];
-  const selected = o.selection ? selectionKey(o.selection) : "";
-  const attrs = (key: string, label: string, extra = "") =>
+  const selected =
+    o.interactive && o.selection ? selectionKey(o.selection) : "";
+  const attrs = (key: string, label: string, extra = "", part = "body") =>
     o.interactive
-      ? `data-key="${key}" ${extra} tabindex="0" role="button" aria-label="${escapeXml(label)}"`
+      ? `data-key="${key}" data-part="${part}" ${extra} tabindex="0" role="button" aria-pressed="${key === selected}" aria-label="${escapeXml(label)}"`
       : "";
   const stroke = (color: string, width = 2) =>
     `stroke="${color}" stroke-width="${width}" vector-effect="non-scaling-stroke" fill="none"`;
   const text = (point: ImagePoint, label: string, dx = 10, dy = -10) =>
     `<text x="${point.x + dx / z}" y="${point.y + dy / z}" font-size="${12 / z}" font-family="system-ui, sans-serif" fill="#ffffff" stroke="#17313e" stroke-width="${3 / z}" stroke-linejoin="round" paint-order="stroke" pointer-events="none">${escapeXml(label)}</text>`;
+  const labels: Label[] = [],
+    obstacles: { x: number; y: number; width: number; height: number }[] = [];
+  const captions: { token: string; point: ImagePoint; label: string }[] = [];
+  const typeNames: Record<string, string> = {
+    pin: "ピン",
+    group: "グループ",
+    measurement: "測距線",
+    reference: "基準円",
+    guide: "補助円",
+  };
+  const addLabel = (
+    point: ImagePoint,
+    label: string,
+    key: string,
+    color: string,
+    dx = 10,
+    dy = -10,
+    detail = "",
+  ) => {
+    labels.push({
+      key,
+      text: label,
+      name: `${typeNames[key.split(":")[0]]} ${detail} ${label}`.trim(),
+      anchor: point,
+      color,
+      dx,
+      dy,
+    });
+    return "";
+  };
+  const caption = (point: ImagePoint, label: string) => {
+    const token = `<!--caption-${captions.length}-->`;
+    captions.push({ token, point, label });
+    return token;
+  };
   const marker = (
     point: ImagePoint,
     key: string,
@@ -63,8 +108,17 @@ export function renderAnnotations(
     color: string,
     diamond = false,
     extra = "",
-  ) =>
-    `<g ${attrs(key, label, extra)}>${o.interactive ? `<circle class="hit" cx="${point.x}" cy="${point.y}" r="${hit}" fill="transparent"/>` : ""}${key === selected ? `<circle cx="${point.x}" cy="${point.y}" r="${10 / z}" ${stroke("#ffffff", 2)}/>` : ""}${key.startsWith("pin:") || extra === 'data-handle="center"' || (key.startsWith("guide:") && extra === 'data-movable="true"') ? `<path d="M${point.x - 6 / z},${point.y - 6 / z}l${12 / z},${12 / z}M${point.x - 6 / z},${point.y + 6 / z}l${12 / z},${-12 / z}" ${stroke("#ffffff", 4)} pointer-events="none"/><path class="visual" d="M${point.x - 6 / z},${point.y - 6 / z}l${12 / z},${12 / z}M${point.x - 6 / z},${point.y + 6 / z}l${12 / z},${-12 / z}" ${stroke(color, 2)} pointer-events="none"/>` : diamond ? `<path class="visual" d="M${point.x},${point.y - 7 / z}l${7 / z},${7 / z}l${-7 / z},${7 / z}l${-7 / z},${-7 / z}Z" fill="${color}" stroke="#fff" stroke-width="${1.5 / z}"/>` : `<circle class="visual" cx="${point.x}" cy="${point.y}" r="${6 / z}" fill="${color}" stroke="#fff" stroke-width="${1.5 / z}"/>`}${text(point, label)}</g>`;
+  ) => {
+    const control = key === "reference" || key.startsWith("guide:");
+    if (!control)
+      obstacles.push({
+        x: point.x - hit,
+        y: point.y - hit,
+        width: 2 * hit,
+        height: 2 * hit,
+      });
+    return `<g ${attrs(key, label, extra, control ? "handle" : "body")}>${o.interactive ? `<circle class="hit" cx="${point.x}" cy="${point.y}" r="${hit}" fill="transparent"/>` : ""}${key === selected ? `<circle cx="${point.x}" cy="${point.y}" r="${10 / z}" ${stroke("#ffffff", 2)}/>` : ""}${key.startsWith("pin:") || extra === 'data-handle="center"' || (key.startsWith("guide:") && extra === 'data-movable="true"') ? `<path d="M${point.x - 6 / z},${point.y - 6 / z}l${12 / z},${12 / z}M${point.x - 6 / z},${point.y + 6 / z}l${12 / z},${-12 / z}" ${stroke("#ffffff", 4)} pointer-events="none"/><path class="visual" d="M${point.x - 6 / z},${point.y - 6 / z}l${12 / z},${12 / z}M${point.x - 6 / z},${point.y + 6 / z}l${12 / z},${-12 / z}" ${stroke(color, 2)} pointer-events="none"/>` : diamond ? `<path class="visual" d="M${point.x},${point.y - 7 / z}l${7 / z},${7 / z}l${-7 / z},${7 / z}l${-7 / z},${-7 / z}Z" fill="${color}" stroke="#fff" stroke-width="${1.5 / z}"/>` : `<circle class="visual" cx="${point.x}" cy="${point.y}" r="${6 / z}" fill="${color}" stroke="#fff" stroke-width="${1.5 / z}"/>`}${control ? caption(point, label) : addLabel(point, label, key, color)}</g>`;
+  };
   const circle = (
     center: Parameters<typeof projectCircle>[0],
     radius: number,
@@ -88,7 +142,7 @@ export function renderAnnotations(
     const centerImage = groundToImage(center, p);
     return {
       points: sample.points,
-      markup: `<g ${attrs(key, label)}>${o.interactive ? `<path class="line-hit" d="${path}" ${stroke("transparent", 12)}/>` : ""}<path d="${path}" ${stroke(color, key === selected ? 3 : 2)} ${key.startsWith("guide:") ? 'stroke-dasharray="7 5"' : ""}/>${centerImage ? text(centerImage, label, 12, 18) : ""}</g>`,
+      markup: `<g ${attrs(key, label)}>${o.interactive ? `<path class="line-hit" d="${path}" ${stroke("transparent", 12)}/>` : ""}<path d="${path}" ${stroke(color, key === selected ? 3 : 2)} ${key.startsWith("guide:") ? 'stroke-dasharray="7 5"' : ""}/>${centerImage ? addLabel(centerImage, label, key, color, 12, 18) : ""}</g>`,
     };
   };
   const guides: string[] = [],
@@ -214,7 +268,7 @@ export function renderAnnotations(
     const key = `measurement:${m.id}`,
       coords = `x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}"`;
     lines.push(
-      `<g ${attrs(key, `${endpointName(doc, m.from)} → ${endpointName(doc, m.to)}`)}>${o.interactive ? `<line class="line-hit" ${coords} ${stroke("transparent", 14)}/>` : ""}<line ${coords} ${stroke("#56c7e9", key === selected ? 3 : 2)}/>${text(mid, formatDistance(measuredDistance(doc, m), doc), 6, -8)}</g>`,
+      `<g ${attrs(key, `${endpointName(doc, m.from)} → ${endpointName(doc, m.to)}`)}>${o.interactive ? `<line class="line-hit" ${coords} ${stroke("transparent", 14)}/>` : ""}<line ${coords} ${stroke("#56c7e9", key === selected ? 3 : 2)}/>${addLabel(mid, formatDistance(measuredDistance(doc, m), doc), key, "#56c7e9", 6, -8, `${endpointName(doc, m.from)} → ${endpointName(doc, m.to)}`)}</g>`,
     );
   }
   for (const g of doc.groups) {
@@ -257,8 +311,44 @@ export function renderAnnotations(
     controls.unshift(
       `<path class="excluded-boundary" d="${boundary}" ${stroke("#ef4444", 1)} opacity="0.65" pointer-events="none" role="img" aria-label="自動除外範囲の境界"><title>赤線の外側は測距から自動除外されています</title></path>`,
     );
+  const layout = layoutLabels(labels, area, z, obstacles, o.measureLabel);
+  if (layout.crowded) warnings.push(DENSE_LABELS);
+  const labelMarkup = layout.boxes
+    .map((box) => {
+      const l = box.label,
+        active = o.interactive && o.selectLabels !== false;
+      const x = box.x / z,
+        y = box.y / z,
+        w = box.width / z,
+        h = box.height / z;
+      const tx = Math.max(x, Math.min(l.anchor.x, x + w)),
+        ty = Math.max(y, Math.min(l.anchor.y, y + h));
+      const attributes = active
+        ? attrs(l.key, l.name, "", "label")
+        : o.interactive
+          ? `data-key="${l.key}" data-part="label" aria-hidden="true"`
+          : "";
+      return `<g ${attributes} class="annotation-label" pointer-events="none">${box.shifted ? `<line class="label-leader" x1="${l.anchor.x}" y1="${l.anchor.y}" x2="${tx}" y2="${ty}" ${stroke(l.color, 1)} pointer-events="none"/>` : ""}${active ? `<rect class="label-hit" x="${x}" y="${y}" width="${w}" height="${h}" rx="${3 / z}" fill="transparent" stroke="none" stroke-width="${1 / z}" pointer-events="all"/>` : ""}${text(l.anchor, box.text, box.x + 5.5 - l.anchor.x * z, box.baseline - l.anchor.y * z)}</g>`;
+    })
+    .join("");
+  let markup = `<defs><clipPath id="image-clip"><rect x="${area.x}" y="${area.y}" width="${area.width}" height="${area.height}"/></clipPath></defs><g clip-path="url(#image-clip)">${guides.join("")}${reference}${lines.join("")}${groups.join("")}${pins.join("")}${labelMarkup}</g>${controls.join("")}`;
+  for (const c of captions) {
+    const m = o.measureLabel(c.label),
+      rect = {
+        x: c.point.x * z + 10 - 2,
+        y: c.point.y * z - 10 - m.ascent - 2,
+        width: m.width + 4,
+        height: m.ascent + m.descent + 4,
+      };
+    markup = markup.replace(
+      c.token,
+      layout.boxes.some((box) => overlapArea(rect, box) > 0)
+        ? ""
+        : text(c.point, c.label),
+    );
+  }
   return {
-    markup: `<defs><clipPath id="image-clip"><rect x="${p.renderArea.x}" y="${p.renderArea.y}" width="${p.renderArea.width}" height="${p.renderArea.height}"/></clipPath></defs><g clip-path="url(#image-clip)">${guides.join("")}${reference}${lines.join("")}${groups.join("")}${pins.join("")}</g>${controls.join("")}`,
+    markup,
     warnings,
   };
 }

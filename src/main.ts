@@ -19,18 +19,25 @@ import {
   type Projection,
 } from "./geometry";
 import { type LoadedImage, loadImage } from "./image";
+import { canvasLabelMeasure } from "./labels";
 import {
   type AnalysisDocument,
   applyEdit,
   type CircleCenter,
   commit,
+  documentFromPreset,
   type Edit,
   type Endpoint,
+  emptyDocument,
   exists,
   newHistory,
+  parseReferencePreset,
+  type ReferencePreset,
   redo,
+  referencePreset,
   resolveCenter,
   type Selection,
+  sameCalibration,
   sameEndpoint,
   scaleFactor,
   undo,
@@ -48,6 +55,7 @@ interface Drag {
   preview: AnalysisDocument;
   target: Selection | null;
   handle: string | null;
+  label: boolean;
   pan: boolean;
   scrollLeft: number;
   scrollTop: number;
@@ -68,11 +76,23 @@ let cursor: ImagePoint | null = null,
   loadRequest = 0,
   loading = false,
   exporting = false;
+let initialDocument = history.present,
+  exportName = "";
+const presetKey = "kuto-measure.reference-preset";
+let savedPreset: ReferencePreset | null = null,
+  savedExists = false,
+  presetError = "";
+let hoverPoint: { x: number; y: number } | null = null,
+  keyboardHover = false;
 const viewport = element("viewport"),
   stage = element("stage"),
   overlay = element<SVGSVGElement>("overlay"),
   image = element<HTMLImageElement>("image");
 const coarse = matchMedia("(pointer: coarse)");
+const labelContext = document.createElement("canvas").getContext("2d");
+if (!labelContext)
+  throw new Error("ラベル描画用のメモリを確保できませんでした。");
+const measureLabel = canvasLabelMeasure(labelContext);
 const showError = (error: unknown) => {
   const box = element("error");
   box.textContent = error instanceof Error ? error.message : String(error);
@@ -108,8 +128,137 @@ const modeHints: Record<Tool, string> = {
 function schedule() {
   if (!frame) frame = requestAnimationFrame(draw);
 }
+function readSavedReference() {
+  savedPreset = null;
+  savedExists = false;
+  presetError = "";
+  try {
+    const raw = localStorage.getItem(presetKey);
+    savedExists = raw !== null;
+    if (raw !== null) savedPreset = parseReferencePreset(raw);
+  } catch (e) {
+    presetError = `保存した基準を読み込めません。${e instanceof Error ? e.message : String(e)}`;
+  }
+}
+function renderSavedReference() {
+  const doc = history.present;
+  const canSave = !!resource && !!doc.reference?.radiusGame && !loading;
+  element<HTMLButtonElement>("save-reference").disabled = !canSave;
+  element("save-reference").textContent = savedExists
+    ? "現在の基準で上書き"
+    : "現在の基準を保存";
+  element("save-reference-hint").textContent = canSave
+    ? "確定済みの円とカメラ設定を保存します。調整後は明示的に上書きしてください。"
+    : "先に基準円のゲーム内半径を設定してください。";
+  element<HTMLButtonElement>("delete-saved-reference").disabled =
+    !savedExists && !presetError;
+  element<HTMLButtonElement>("reset-reference").disabled =
+    !resource ||
+    loading ||
+    (!doc.reference && sameCalibration(doc.calibration, DEFAULT_CALIBRATION));
+  element("saved-reference-error").textContent = presetError;
+  element("saved-reference-detail").textContent = savedPreset
+    ? `保存したゲーム内半径：${savedPreset.reference.radiusGame}（カメラ設定を含む）`
+    : "";
+  element("saved-reference-state").textContent = !savedPreset
+    ? savedExists
+      ? "保存した基準は使用できません"
+      : presetError
+        ? "保存した基準を確認できません"
+        : "保存した基準はありません"
+    : !resource
+      ? "次に開く画像へ自動適用します"
+      : !doc.reference
+        ? "この画像では保存した基準を使用していません"
+        : doc.reference.radiusGame &&
+            JSON.stringify(referencePreset(doc)) === JSON.stringify(savedPreset)
+          ? "保存した基準を使用中"
+          : "現在の基準は保存内容と異なります";
+}
+function hasEdits() {
+  return (
+    !sameCalibration(
+      history.present.calibration,
+      initialDocument.calibration,
+    ) ||
+    JSON.stringify({
+      ...history.present,
+      calibration: initialDocument.calibration,
+    }) !== JSON.stringify(initialDocument)
+  );
+}
+function updateHover() {
+  let key: string | null = null;
+  const overlapped = new Set<string>();
+  if (
+    tool === "pin" &&
+    hoverPoint &&
+    projection &&
+    !space &&
+    !drag?.pan &&
+    !document.querySelector("dialog[open], :popover-open") &&
+    inRect(pointAt(hoverPoint.x, hoverPoint.y), projection.renderArea)
+  ) {
+    const point = new DOMPoint(hoverPoint.x, hoverPoint.y);
+    for (const node of overlay.querySelectorAll<SVGElement>("[data-key]")) {
+      for (const shape of node.querySelectorAll(
+        "path, circle, line, rect, text",
+      )) {
+        if (shape.matches(".hit, .line-hit, .label-hit")) continue;
+        let hit = false;
+        if (shape instanceof SVGGeometryElement) {
+          const matrix = shape.getScreenCTM();
+          if (!matrix) continue;
+          const local = point.matrixTransform(matrix.inverse());
+          const style = getComputedStyle(shape);
+          hit =
+            (style.fill !== "none" && shape.isPointInFill(local)) ||
+            (style.stroke !== "none" && shape.isPointInStroke(local));
+        } else if (shape instanceof SVGTextElement) {
+          const box = shape.getBoundingClientRect();
+          hit =
+            point.x >= box.left &&
+            point.x <= box.right &&
+            point.y >= box.top &&
+            point.y <= box.bottom;
+        }
+        if (hit && node.dataset.key) {
+          overlapped.add(node.dataset.key);
+          break;
+        }
+      }
+    }
+  }
+  if (
+    tool === "select" &&
+    !space &&
+    !drag &&
+    !document.querySelector("dialog[open], :popover-open")
+  ) {
+    const node = keyboardHover
+      ? document.activeElement
+      : hoverPoint
+        ? document.elementFromPoint(hoverPoint.x, hoverPoint.y)
+        : null;
+    if (node instanceof Element && overlay.contains(node))
+      key = node.closest("[data-key]")?.getAttribute("data-key") ?? null;
+  }
+  for (const node of overlay.querySelectorAll<SVGElement>("[data-key]")) {
+    node.classList.toggle("candidate", !!key && node.dataset.key === key);
+    node.classList.toggle(
+      "pin-overlap",
+      overlapped.has(node.dataset.key ?? ""),
+    );
+  }
+}
+function clearHover() {
+  hoverPoint = null;
+  keyboardHover = false;
+  updateHover();
+}
 function draw() {
   frame = 0;
+  const focusHover = keyboardHover;
   element<HTMLOutputElement>("zoom").value = resource
     ? `${Number((view.state.zoom * 100).toFixed(1))}%`
     : "—";
@@ -123,12 +272,15 @@ function draw() {
       ? document.activeElement
       : null;
   const activeKey = active?.getAttribute("data-key"),
+    activePart = active?.getAttribute("data-part"),
     activeHandle = active?.getAttribute("data-handle"),
     activeAngle = active?.getAttribute("data-angle");
   const result = renderAnnotations(doc, projection, {
     zoom: view.state.zoom,
-    selection,
+    selection: tool === "pin" ? null : selection,
     interactive: true,
+    measureLabel,
+    selectLabels: tool === "select",
     coarse: coarse.matches,
     visible: view.visible(),
     cursor,
@@ -137,15 +289,20 @@ function draw() {
       : null,
   });
   overlay.innerHTML = result.markup;
+  overlay.style.setProperty("--hover-inner", `${1 / view.state.zoom}px`);
+  overlay.style.setProperty("--hover-outer", `${2 / view.state.zoom}px`);
   if (activeKey) {
     const next = [...overlay.querySelectorAll<SVGElement>("[data-key]")].find(
       (el) =>
         el.dataset.key === activeKey &&
+        el.getAttribute("data-part") === activePart &&
         el.getAttribute("data-handle") === activeHandle &&
         el.getAttribute("data-angle") === activeAngle,
     );
     next?.focus({ preventScroll: true });
   }
+  keyboardHover = focusHover;
+  updateHover();
   if (result.warnings.length) status(result.warnings[0]);
 }
 function refresh() {
@@ -163,6 +320,7 @@ function refresh() {
   }
   if (selection && !exists(history.present, selection)) selection = null;
   panels.render(history, selection, projection, !!resource);
+  renderSavedReference();
   for (const button of document.querySelectorAll<HTMLButtonElement>(
     "[data-tool]",
   )) {
@@ -180,6 +338,7 @@ function refresh() {
   viewport.dataset.mode = tool;
   viewport.classList.toggle("pan-ready", space);
   viewport.classList.toggle("panning", !!drag?.pan);
+  updateHover();
   schedule();
 }
 function selectObject(next: Selection) {
@@ -216,7 +375,7 @@ function editDocument(edit: Edit) {
     )
       throw new Error("基準円がカメラ前方に収まりません。");
     history = commit(history, next);
-    if (edit.type === "calibration") {
+    if (edit.type === "calibration" || edit.type === "reset-reference") {
       referenceStart = null;
       measureStart = null;
       pendingGuide = null;
@@ -230,6 +389,7 @@ function editDocument(edit: Edit) {
 }
 function setTool(next: Tool) {
   finishDrag(true);
+  clearHover();
   referenceStart = null;
   measureStart = null;
   pendingGuide = null;
@@ -427,9 +587,13 @@ viewport.addEventListener("pointerdown", (event) => {
     return;
   const pan = tool === "pan" || space || event.button === 1;
   if (!pan && !projection) return;
+  if (event.pointerType === "touch") clearHover();
   event.preventDefault();
   const node = event.target instanceof Element ? event.target : null;
   const target = parseSelection(node),
+    label =
+      tool === "select" &&
+      node?.closest("[data-part]")?.getAttribute("data-part") === "label",
     handle =
       node?.closest("[data-handle]")?.getAttribute("data-handle") ?? null;
   const start = pointAt(event.clientX, event.clientY);
@@ -441,12 +605,13 @@ viewport.addEventListener("pointerdown", (event) => {
     preview: history.present,
     target,
     handle,
+    label,
     pan,
     scrollLeft: viewport.scrollLeft,
     scrollTop: viewport.scrollTop,
     moved: false,
   };
-  if (!pan && tool === "select") selection = target;
+  if (!pan && tool === "select" && !label) selection = target;
   viewport.focus({ preventScroll: true });
   viewport.setPointerCapture(event.pointerId);
   refresh();
@@ -529,6 +694,7 @@ function updateDrag(event: PointerEvent) {
     viewport.scrollTop = d.scrollTop - (event.clientY - d.startClient.y);
     return;
   }
+  if (d.label) return;
   if (!d.moved || tool !== "select" || !d.target || !d.startGround) return;
   const current = groundAt(pointAt(event.clientX, event.clientY));
   if (!current) return;
@@ -539,6 +705,30 @@ function updateDrag(event: PointerEvent) {
   }
 }
 viewport.addEventListener("pointermove", updateDrag);
+viewport.addEventListener("pointermove", (event) => {
+  keyboardHover = false;
+  hoverPoint =
+    event.pointerType === "touch"
+      ? null
+      : { x: event.clientX, y: event.clientY };
+  updateHover();
+});
+viewport.addEventListener("pointerleave", () => {
+  clearHover();
+});
+overlay.addEventListener("focusin", () => {
+  keyboardHover = true;
+  updateHover();
+});
+overlay.addEventListener("focusout", () => queueMicrotask(updateHover));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Tab") {
+    hoverPoint = null;
+    keyboardHover = true;
+  }
+});
+for (const dialog of document.querySelectorAll("dialog"))
+  dialog.addEventListener("toggle", clearHover);
 function finishDrag(cancel: boolean, event?: PointerEvent) {
   if (!drag) return;
   const previous = drag;
@@ -550,10 +740,10 @@ function finishDrag(cancel: boolean, event?: PointerEvent) {
       viewport.scrollTo(previous.scrollLeft, previous.scrollTop);
     status("操作を取り消しました。");
   } else if (!previous.pan) {
-    if (previous.moved) {
+    if (previous.moved && !previous.label) {
       history = commit(history, previous.preview);
       status("位置を更新しました。");
-    } else if (event)
+    } else if (!previous.moved && event)
       activate(pointAt(event.clientX, event.clientY), previous.target);
   }
   refresh();
@@ -572,11 +762,17 @@ viewport.addEventListener("auxclick", (event) => {
 });
 window.addEventListener("blur", () => {
   space = false;
+  clearHover();
   finishDrag(true);
   refresh();
 });
 
 function keyboardMove(event: KeyboardEvent) {
+  if (
+    event.target instanceof Element &&
+    event.target.closest('[data-part="label"]')
+  )
+    return;
   if (!projection || !resource) return;
   const step = event.shiftKey ? 10 : 1;
   const delta: Record<string, [number, number]> = {
@@ -671,6 +867,20 @@ document.addEventListener("keydown", (event) => {
   }
   if (
     event.code === "Space" &&
+    tool === "select" &&
+    event.target instanceof Element &&
+    event.target.closest('[data-part="label"]') &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey
+  ) {
+    event.preventDefault();
+    const target = parseSelection(event.target);
+    if (target && !event.repeat) selectObject(target);
+    return;
+  }
+  if (
+    event.code === "Space" &&
     event.target instanceof Element &&
     viewport.contains(event.target)
   ) {
@@ -710,12 +920,7 @@ async function openFiles(files: FileList | File[]) {
   }
   if (
     resource &&
-    (history.present.pins.length ||
-      history.present.calibration !== DEFAULT_CALIBRATION ||
-      history.present.groups.length ||
-      history.present.reference ||
-      history.present.guides.length ||
-      history.present.measurements.length) &&
+    hasEdits() &&
     !window.confirm("現在の編集内容を破棄して別の画像を開きますか？")
   ) {
     loading = false;
@@ -735,8 +940,23 @@ async function openFiles(files: FileList | File[]) {
     finishDrag(true);
     const previous = resource;
     resource = next;
-    history = newHistory();
-    selection = null;
+    readSavedReference();
+    let doc = emptyDocument(),
+      applicationError = presetError;
+    if (savedPreset) {
+      try {
+        doc = documentFromPreset(savedPreset, next, next.renderArea);
+      } catch (e) {
+        applicationError = e instanceof Error ? e.message : String(e);
+      }
+    }
+    history = newHistory(doc);
+    initialDocument = doc;
+    exportName = "";
+    selection = doc.reference ? { kind: "reference" } : null;
+    if (doc.reference)
+      element<HTMLDetailsElement>("reference-panel").open = true;
+    clearHover();
     referenceStart = null;
     measureStart = null;
     cursor = null;
@@ -765,10 +985,16 @@ async function openFiles(files: FileList | File[]) {
     view.setImage(next);
     if (previous) URL.revokeObjectURL(previous.url);
     status(
-      projection
-        ? "画像を開きました。基準円を合わせるか、ピンを配置してください。"
-        : "投影を設定できないため、表示のみ利用できます。",
+      applicationError
+        ? "保存した基準を適用せず、初期設定で画像を開きました。"
+        : doc.reference
+          ? "保存した基準を使用中です。円の位置と大きさを確認してください。"
+          : projection
+            ? "画像を開きました。基準円を合わせるか、ピンを配置してください。"
+            : "投影を設定できないため、表示のみ利用できます。",
     );
+    if (applicationError)
+      showError(`${applicationError} 初期設定で画像を開きました。`);
   } catch (e) {
     if (request === loadRequest) {
       showError(e);
@@ -801,26 +1027,114 @@ viewport.addEventListener("drop", (event) => {
 });
 for (const type of ["dragover", "drop"])
   document.addEventListener(type, (event) => event.preventDefault());
-element("export").addEventListener("click", async () => {
-  if (!resource || exporting) return;
+type SavePicker = (options: {
+  suggestedName: string;
+  types: { description: string; accept: Record<string, string[]> }[];
+  excludeAcceptAllOption: boolean;
+}) => Promise<FileSystemFileHandle>;
+element("export").addEventListener("click", () => {
+  if (!resource || exporting || loading) return;
   finishDrag(true);
+  clearHover();
+  const name =
+    exportName || `${resource.name.replace(/\.[^.]+$/, "")}-measure.png`;
+  const picker = (window as Window & { showSaveFilePicker?: SavePicker })
+    .showSaveFilePicker;
+  void saveExport(name, picker?.bind(window));
+});
+async function saveExport(name: string, picker?: SavePicker) {
+  if (!resource) return;
   exporting = true;
+  showError("");
+  status("PNGを生成しています…");
   refresh();
   const source = resource,
     doc = history.present,
     p = projection;
   try {
+    let handle: FileSystemFileHandle | undefined;
+    if (picker) {
+      try {
+        handle = await picker({
+          suggestedName: name,
+          types: [
+            { description: "PNG画像", accept: { "image/png": [".png"] } },
+          ],
+          excludeAcceptAllOption: true,
+        });
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") {
+          status("PNGの保存をキャンセルしました。");
+          return;
+        }
+        throw e;
+      }
+      if (resource === source) exportName = handle.name;
+    }
     await document.fonts.ready;
-    download(
-      await exportPng(source, doc, p),
-      `${source.name.replace(/\.[^.]+$/, "")}-measure.png`,
-    );
-    status("元の画像サイズでPNGを書き出しました。");
+    const result = await exportPng(source, doc, p);
+    if (handle) {
+      const writable = await handle.createWritable();
+      try {
+        await writable.write(result.blob);
+        await writable.close();
+      } catch (e) {
+        await writable.abort().catch(() => {});
+        throw e;
+      }
+      status(`PNGを保存しました。${result.warnings.join(" ")}`);
+    } else {
+      download(result.blob, name);
+      status(`PNGのダウンロードを開始しました。${result.warnings.join(" ")}`);
+    }
   } catch (e) {
     showError(e);
   } finally {
     exporting = false;
     refresh();
+  }
+}
+element("save-reference").addEventListener("click", () => {
+  if (!resource || loading) return;
+  finishDrag(true);
+  try {
+    const preset = referencePreset(history.present);
+    parseReferencePreset(JSON.stringify(preset));
+    documentFromPreset(preset, resource, resource.renderArea);
+    localStorage.setItem(presetKey, JSON.stringify(preset));
+    savedPreset = preset;
+    savedExists = true;
+    presetError = "";
+    status("現在の基準円とカメラ設定をブラウザに保存しました。");
+  } catch (e) {
+    presetError = `基準を保存できませんでした。${e instanceof Error ? e.message : String(e)}`;
+  }
+  renderSavedReference();
+});
+element("delete-saved-reference").addEventListener("click", () => {
+  try {
+    localStorage.removeItem(presetKey);
+    savedPreset = null;
+    savedExists = false;
+    presetError = "";
+    status("保存した基準を削除しました。現在の画像の基準は保持しています。");
+  } catch (e) {
+    presetError = `保存した基準を削除できませんでした。${e instanceof Error ? e.message : String(e)}`;
+  }
+  renderSavedReference();
+});
+element("reset-reference").addEventListener("click", () => {
+  if (!resource || loading) return;
+  editDocument({
+    type: "reset-reference",
+    size: resource,
+    renderArea: resource.renderArea,
+  });
+});
+window.addEventListener("storage", (event) => {
+  if (event.key === presetKey || event.key === null) {
+    readSavedReference();
+    renderSavedReference();
   }
 });
 const choices = document.querySelectorAll<HTMLInputElement>(
@@ -925,13 +1239,7 @@ if (!("closedBy" in HTMLDialogElement.prototype)) {
   }
 }
 window.addEventListener("beforeunload", (event) => {
-  if (
-    history.present.pins.length ||
-    history.present.groups.length ||
-    history.present.reference ||
-    history.present.guides.length ||
-    history.present.measurements.length
-  )
-    event.preventDefault();
+  if (hasEdits()) event.preventDefault();
 });
+readSavedReference();
 refresh();
