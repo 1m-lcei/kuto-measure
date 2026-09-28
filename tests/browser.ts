@@ -411,6 +411,38 @@ try {
           ),
         )
         .toBe(1);
+      const leaderGaps = await page
+        .locator("#overlay .label-leader")
+        .evaluateAll((leaders) => {
+          const ctx = document.createElement("canvas").getContext("2d");
+          if (!ctx) throw new Error("Missing text metrics");
+          ctx.font = "12px system-ui, sans-serif";
+          return leaders.map((node) => {
+            const line = node as SVGLineElement;
+            const text = line.parentElement?.querySelector(
+              "text",
+            ) as SVGTextElement;
+            const zoom = text.getScreenCTM()?.a;
+            if (!zoom) throw new Error("Missing SVG transform");
+            const metrics = ctx.measureText(text.textContent ?? "");
+            const x = text.x.baseVal[0].value * zoom;
+            const y = text.y.baseVal[0].value * zoom;
+            const endX = line.x2.baseVal.value * zoom;
+            const endY = line.y2.baseVal.value * zoom;
+            return Math.max(
+              x - metrics.actualBoundingBoxLeft - endX,
+              endX - x - metrics.actualBoundingBoxRight,
+              y - metrics.actualBoundingBoxAscent - endY,
+              endY - y - metrics.actualBoundingBoxDescent,
+            );
+          });
+        });
+      assert(leaderGaps.length >= 2, "Pin labels have leaders");
+      for (const gap of leaderGaps)
+        assert(
+          Math.abs(gap - 2) < 0.1,
+          `Leader must meet the text halo: ${gap}px`,
+        );
       await page
         .getByLabel("画像を開く")
         .setInputFiles(await imagePayload(page));

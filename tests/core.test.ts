@@ -17,7 +17,12 @@ import {
   imageToGround,
   projectCircle,
 } from "../src/geometry";
-import { type Label, layoutLabels, overlapArea } from "../src/labels";
+import {
+  type Label,
+  layoutLabels,
+  lineHitsRect,
+  overlapArea,
+} from "../src/labels";
 import {
   type AnalysisDocument,
   applyEdit,
@@ -269,6 +274,20 @@ test("label packing separates coincident and nearby labels without moving anchor
   });
   expect(layoutLabels(labels, area, 1, obstacles, measure)).toEqual(result);
   expect(JSON.stringify(labels)).toBe(before);
+  const coincident = layoutLabels(
+    labels.slice(0, 3),
+    area,
+    1,
+    obstacles,
+    measure,
+  );
+  for (const box of coincident.boxes) {
+    assert(box.leader);
+    const dx = Math.abs(box.leader.end.x - box.leader.start.x),
+      dy = Math.abs(box.leader.end.y - box.leader.start.y);
+    // With free space, do not arrange coincident labels as horizontal/vertical axes.
+    expect(Math.min(dx, dy) / Math.max(dx, dy)).toBeGreaterThan(0.25);
+  }
   for (const anchor of [
     imagePoint(0, 0),
     imagePoint(800, 0),
@@ -297,6 +316,97 @@ test("label packing separates coincident and nearby labels without moving anchor
     layoutLabels(labels, { ...area, width: 70, height: 70 }, 1, [], measure)
       .crowded,
   ).toBe(true);
+});
+
+test("labels avoid measurement strokes at every angle and zoom, and leaders end at visible text", () => {
+  const area = { x: 0, y: 0, width: 800, height: 600 };
+  const label: Label = {
+    key: "pin:a",
+    text: "a",
+    name: "a",
+    color: "#fff",
+    anchor: imagePoint(400, 300),
+    dx: 10,
+    dy: -10,
+  };
+  // Short text has a 24px hit target but only a 5×8px visible glyph.
+  const measure = () => ({ width: 5, ascent: 7, descent: 1, left: 1 });
+  for (const zoom of [0.4, 1, 2.5]) {
+    for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 12) {
+      const dx = Math.cos(angle),
+        dy = Math.sin(angle);
+      const line = {
+        start: imagePoint(400 - dx * 150, 300 - dy * 150),
+        end: imagePoint(400 + dx * 150, 300 + dy * 150),
+      };
+      const result = layoutLabels(
+        [label],
+        area,
+        zoom,
+        [
+          {
+            x: 400 - 16 / zoom,
+            y: 300 - 16 / zoom,
+            width: 32 / zoom,
+            height: 32 / zoom,
+          },
+        ],
+        measure,
+        [line],
+      );
+      expect(result.crowded).toBe(false);
+      const box = result.boxes[0],
+        leader = box.leader;
+      assert(leader);
+      expect(
+        lineHitsRect(
+          {
+            start: { x: line.start.x * zoom, y: line.start.y * zoom },
+            end: { x: line.end.x * zoom, y: line.end.y * zoom },
+          },
+          box,
+          3,
+        ),
+      ).toBe(false);
+      // Outside the shared anchor, stay clear of the stroke even when collinear was the shortest route.
+      const side = (point: { x: number; y: number }) =>
+        (point.x - 400 * zoom) * dy - (point.y - 300 * zoom) * dx;
+      expect(leader.start).toEqual({ x: 400 * zoom, y: 300 * zoom });
+      const length = Math.hypot(
+        leader.end.x - leader.start.x,
+        leader.end.y - leader.start.y,
+      );
+      expect((Math.abs(side(leader.end)) * 9) / length).toBeGreaterThan(2);
+      expect(Math.abs(side(leader.end))).toBeGreaterThan(2);
+      const ink = {
+        x: box.textX - 1,
+        y: box.baseline - 7,
+        width: 5,
+        height: 8,
+      };
+      const gapX = Math.max(
+        ink.x - leader.end.x,
+        leader.end.x - ink.x - ink.width,
+        0,
+      );
+      const gapY = Math.max(
+        ink.y - leader.end.y,
+        leader.end.y - ink.y - ink.height,
+        0,
+      );
+      expect(Math.max(gapX, gapY)).toBeCloseTo(2);
+    }
+  }
+  const rect = { x: 20, y: 20, width: 10, height: 10 };
+  for (const [start, end, hits] of [
+    [imagePoint(0, 0), imagePoint(50, 50), true],
+    [imagePoint(0, 25), imagePoint(50, 25), true],
+    [imagePoint(25, 0), imagePoint(25, 50), true],
+    [imagePoint(25, 25), imagePoint(25, 25), true],
+    [imagePoint(0, 0), imagePoint(50, 10), false],
+    [imagePoint(0, 0), imagePoint(0, 0), false],
+  ] as const)
+    expect(lineHitsRect({ start, end }, rect)).toBe(hits);
 });
 
 const projection = buildProjection(DEFAULT_CALIBRATION, {

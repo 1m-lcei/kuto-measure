@@ -9,6 +9,7 @@ import {
 import {
   DENSE_LABELS,
   type Label,
+  type LabelLine,
   layoutLabels,
   type MeasureLabel,
   overlapArea,
@@ -68,7 +69,8 @@ export function renderAnnotations(
   const text = (point: ImagePoint, label: string, dx = 10, dy = -10) =>
     `<text x="${point.x + dx / z}" y="${point.y + dy / z}" font-size="${12 / z}" font-family="system-ui, sans-serif" fill="#ffffff" stroke="#17313e" stroke-width="${3 / z}" stroke-linejoin="round" paint-order="stroke" pointer-events="none">${escapeXml(label)}</text>`;
   const labels: Label[] = [],
-    obstacles: { x: number; y: number; width: number; height: number }[] = [];
+    obstacles: { x: number; y: number; width: number; height: number }[] = [],
+    labelLines: LabelLine[] = [];
   const captions: { token: string; point: ImagePoint; label: string }[] = [];
   const typeNames: Record<string, string> = {
     pin: "ピン",
@@ -140,6 +142,12 @@ export function renderAnnotations(
     if (sample.limited)
       warnings.push(`${label}：円の描画精度が分割上限に達しました。`);
     const path = `M${sample.points.map((q) => `${q.x},${q.y}`).join("L")}Z`;
+    sample.points.forEach((start, i) => {
+      labelLines.push({
+        start,
+        end: sample.points[(i + 1) % sample.points.length],
+      });
+    });
     const centerImage = groundToImage(center, p);
     return {
       points: sample.points,
@@ -266,6 +274,7 @@ export function renderAnnotations(
       end = groundToImage(b, p),
       mid = groundToImage(groundPoint((a.x + b.x) / 2, (a.y + b.y) / 2), p);
     if (!start || !end || !mid) continue;
+    labelLines.push({ start, end });
     const key = `measurement:${m.id}`,
       coords = `x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}"`;
     lines.push(
@@ -319,7 +328,14 @@ export function renderAnnotations(
       `<g class="area-preview" pointer-events="none" role="img" aria-label="未適用のゲーム領域"><title>赤い破線の内側が適用予定のゲーム領域です。暗い部分は除外予定です。</title><path d="M0,0H${p.size.width}V${p.size.height}H0ZM${draft.x},${draft.y}h${draft.width}v${draft.height}h${-draft.width}Z" fill="#000" fill-opacity="0.3" fill-rule="evenodd"/><rect class="area-preview-boundary" ${rect} ${stroke("#ef4444", 1)} stroke-dasharray="8 5"/></g>`,
     );
   }
-  const layout = layoutLabels(labels, area, z, obstacles, o.measureLabel);
+  const layout = layoutLabels(
+    labels,
+    area,
+    z,
+    obstacles,
+    o.measureLabel,
+    labelLines,
+  );
   if (layout.crowded) warnings.push(DENSE_LABELS);
   const labelMarkup = layout.boxes
     .map((box) => {
@@ -329,14 +345,13 @@ export function renderAnnotations(
         y = box.y / z,
         w = box.width / z,
         h = box.height / z;
-      const tx = Math.max(x, Math.min(l.anchor.x, x + w)),
-        ty = Math.max(y, Math.min(l.anchor.y, y + h));
+      const leader = box.leader;
       const attributes = active
         ? attrs(l.key, l.name, "", "label")
         : o.interactive
           ? `data-key="${l.key}" data-part="label" aria-hidden="true"`
           : "";
-      return `<g ${attributes} class="annotation-label" pointer-events="none">${box.shifted ? `<line class="label-leader" x1="${l.anchor.x}" y1="${l.anchor.y}" x2="${tx}" y2="${ty}" ${stroke(l.color, 1)} pointer-events="none"/>` : ""}${active ? `<rect class="label-hit" x="${x}" y="${y}" width="${w}" height="${h}" rx="${3 / z}" fill="transparent" stroke="none" stroke-width="${1 / z}" pointer-events="all"/>` : ""}${text(l.anchor, box.text, box.x + 5.5 - l.anchor.x * z, box.baseline - l.anchor.y * z)}</g>`;
+      return `<g ${attributes} class="annotation-label" pointer-events="none">${leader ? `<line class="label-leader" x1="${leader.start.x / z}" y1="${leader.start.y / z}" x2="${leader.end.x / z}" y2="${leader.end.y / z}" ${stroke(l.color, 1)} pointer-events="none"/>` : ""}${active ? `<rect class="label-hit" x="${x}" y="${y}" width="${w}" height="${h}" rx="${3 / z}" fill="transparent" stroke="none" stroke-width="${1 / z}" pointer-events="all"/>` : ""}${text(l.anchor, box.text, box.textX - l.anchor.x * z, box.baseline - l.anchor.y * z)}</g>`;
     })
     .join("");
   let markup = `<defs><clipPath id="image-clip"><rect x="${area.x}" y="${area.y}" width="${area.width}" height="${area.height}"/></clipPath></defs><g clip-path="url(#image-clip)">${guides.join("")}${reference}${lines.join("")}${groups.join("")}${pins.join("")}${labelMarkup}</g>${controls.join("")}`;
