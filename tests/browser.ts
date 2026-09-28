@@ -515,6 +515,31 @@ try {
         path: `test-results/${name}-reorder.png`,
         fullPage: true,
       });
+      await modes.getByRole("button", { name: /測距線/ }).click();
+      await clickImage(page, 500, 400);
+      await clickImage(page, 1000, 470);
+      await expect(relativeRows).toHaveCount(3);
+      await expect(page.locator("#viewport")).toHaveAttribute(
+        "data-mode",
+        "measure",
+      );
+      const relativePins = page.locator(
+        '#object-list [data-object-key^="pin:"]',
+      );
+      await relativePins.nth(1).click();
+      await expect(relativeRows).toHaveCount(3);
+      await relativePins.nth(2).click();
+      await expect(relativeRows).toHaveCount(4);
+      await expect(relativeRows.last()).toContainText("ピン2 → ピン3");
+      await expect(page.locator("#viewport")).toHaveAttribute(
+        "data-mode",
+        "measure",
+      );
+      await page.keyboard.press("Escape");
+      await expect(page.locator("#viewport")).toHaveAttribute(
+        "data-mode",
+        "select",
+      );
       await page
         .getByLabel("画像を開く")
         .setInputFiles(await imagePayload(page));
@@ -675,13 +700,38 @@ try {
         .waitFor({ state: "hidden" });
       await expect(page.getByRole("application")).toBeFocused();
       await clickImage(page, 500, 400);
-      await page
-        .getByRole("dialog", { name: "補助円を追加" })
-        .getByRole("button", { name: /追加/ })
-        .click();
-      await page
-        .getByRole("dialog", { name: "補助円を追加" })
-        .waitFor({ state: "hidden" });
+      const guideDialog = page.getByRole("dialog", { name: "補助円を追加" });
+      const guideInput = guideDialog.getByLabel("半径", { exact: true });
+      const addGuide = guideDialog.getByRole("button", { name: /追加/ });
+      const guideRows = page.locator(
+        '#object-list [data-object-key^="guide:"]',
+      );
+      await expect(guideInput).toHaveValue("0");
+      await addGuide.click();
+      await expect(page.locator("#guide-error")).not.toBeEmpty();
+      await expect(guideRows).toHaveCount(0);
+      await guideInput.fill("350");
+      await addGuide.click();
+      await expect(guideDialog).toBeHidden();
+      await expect(guideRows).toHaveCount(1);
+      await expect(page.locator("#viewport")).toHaveAttribute(
+        "data-mode",
+        "guide",
+      );
+      await expect(page.getByRole("application")).toBeFocused();
+      await clickImage(page, 1150, 550);
+      await expect(guideInput).toHaveValue("0");
+      await expect(page.locator("#guide-error")).toBeEmpty();
+      await guideInput.fill("200");
+      await addGuide.click();
+      await expect(guideDialog).toBeHidden();
+      await expect(guideRows).toHaveCount(2);
+      await expect(page.locator("#viewport")).toHaveAttribute(
+        "data-mode",
+        "guide",
+      );
+      await page.locator("#undo").click();
+      await expect(guideRows).toHaveCount(1);
       await page.getByRole("button", { name: "使い方", exact: true }).click();
       await expect(page.getByRole("dialog", { name: "使い方" })).toBeVisible();
       await page
@@ -769,6 +819,7 @@ try {
         await page.getByRole("button", { name: "測距線を追加" }).click();
         await modes.getByRole("button", { name: /補助円/ }).click();
         await page.locator(`[data-object-key="${groupKey}"]`).click();
+        await guideInput.fill("350");
         await page
           .getByRole("dialog", { name: "補助円を追加" })
           .getByRole("button", { name: /追加/ })
@@ -776,6 +827,7 @@ try {
         await expect(
           page.locator('#object-list [data-object-key^="guide:"]'),
         ).toHaveCount(2);
+        await modes.getByRole("button", { name: /選択/ }).click();
         await page.getByRole("button", { name: "元に戻す" }).click();
         await page.locator(`[data-object-key="${pinKeys[0]}"]`).click();
         await page.getByRole("button", { name: "削除", exact: true }).click();

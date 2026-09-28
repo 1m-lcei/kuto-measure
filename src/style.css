@@ -723,6 +723,9 @@
   }
   #empty p {
     color: var(--muted);
+  }
+  #empty p,
+  #empty .screenshot-hint {
     font-size: 12px;
   }
   .empty-mark {
@@ -785,7 +788,8 @@
     .empty-steps span {
       font-size: 9px;
     }
-    #empty p {
+    #empty p,
+    #empty .screenshot-hint {
       font-size: 11px;
     }
   }

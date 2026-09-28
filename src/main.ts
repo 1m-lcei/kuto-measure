@@ -474,7 +474,7 @@ function addMeasurement(a: Endpoint, b: Endpoint) {
   const id = crypto.randomUUID();
   editDocument({ type: "measurement", value: { id, from: a, to: b } });
   selection = { kind: "measurement", id };
-  tool = "select";
+  if (tool !== "measure") tool = "select";
   measureStart = null;
   refresh();
   status("測距線を追加しました。");
@@ -526,7 +526,7 @@ function beginGuide(center: CircleCenter) {
   pendingGuide = center;
   const dialog = element<HTMLDialogElement>("guide-dialog");
   element("guide-error").textContent = "";
-  element<HTMLInputElement>("new-guide-radius").value = "350";
+  element<HTMLInputElement>("new-guide-radius").value = "0";
   dialog.showModal();
   element<HTMLInputElement>("new-guide-radius").focus();
 }
@@ -547,7 +547,6 @@ element("guide-form").addEventListener("submit", (event) => {
       value: { id, center: pendingGuide, radiusGame: radius },
     });
     selection = { kind: "guide", id };
-    tool = "select";
     pendingGuide = null;
     element<HTMLDialogElement>("guide-dialog").close();
     refresh();
