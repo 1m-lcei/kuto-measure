@@ -1,6 +1,7 @@
 import { download, exportPng } from "./export";
 import {
   buildProjection,
+  type ClientPoint,
   circleValid,
   clientPoint,
   clientToImage,
@@ -14,6 +15,7 @@ import {
   type ImagePoint,
   type ImageRect,
   imagePoint,
+  imageToClient,
   imageToGround,
   inImage,
   inRect,
@@ -72,6 +74,9 @@ let selection: Selection | null = null,
   tool: Tool = "pan",
   drag: Drag | null = null,
   space = false;
+const touches = new Map<number, ClientPoint>();
+let touchNavigation = false;
+let pinch: { distance: number; zoom: number; anchor: ImagePoint } | null = null;
 let referenceStart: GroundPoint | null = null,
   measureStart: Endpoint | null = null,
   pendingGuide: CircleCenter | null = null;
@@ -133,7 +138,7 @@ const view = createViewport(
   stage,
   schedule,
   () => {
-    if (drag) finishDrag(true);
+    if (drag || pinch) finishDrag(true);
   },
   () => !!drag,
 );
@@ -633,18 +638,43 @@ function activate(point: ImagePoint, target: Selection | null) {
         : { kind: "point", point: ground },
     );
 }
+function touchSpan() {
+  const [a, b] = touches.values();
+  return touches.size === 2
+    ? {
+        center: clientPoint((a.x + b.x) / 2, (a.y + b.y) / 2),
+        distance: Math.hypot(a.x - b.x, a.y - b.y),
+      }
+    : null;
+}
 viewport.addEventListener("pointerdown", (event) => {
-  if (
-    !resource ||
-    drag ||
-    loading ||
-    !event.isPrimary ||
-    ![0, 1].includes(event.button)
-  )
-    return;
+  if (!resource || loading || ![0, 1].includes(event.button)) return;
+  if (event.pointerType === "touch") {
+    event.preventDefault();
+    clearHover();
+    touches.set(event.pointerId, clientPoint(event.clientX, event.clientY));
+    viewport.setPointerCapture(event.pointerId);
+    // A changed contact count ends navigation; editing waits for all fingers up.
+    if (touchNavigation) {
+      pinch = null;
+      return;
+    }
+    const span = touchSpan();
+    if (span) {
+      finishDrag(true);
+      touchNavigation = true;
+      pinch = {
+        distance: Math.max(1, span.distance),
+        zoom: view.state.zoom,
+        anchor: pointAt(span.center.x, span.center.y),
+      };
+      status("2本指で表示位置を移動・拡大縮小できます。");
+      return;
+    }
+  }
+  if (drag || touchNavigation || !event.isPrimary) return;
   const pan = tool === "pan" || space || event.button === 1;
   if (!pan && !projection) return;
-  if (event.pointerType === "touch") clearHover();
   event.preventDefault();
   const node = event.target instanceof Element ? event.target : null;
   const target = parseSelection(node),
@@ -738,13 +768,25 @@ function moveEdit(
   return next;
 }
 function updateDrag(event: PointerEvent) {
+  if (touches.has(event.pointerId)) {
+    touches.set(event.pointerId, clientPoint(event.clientX, event.clientY));
+    const span = touchSpan();
+    if (pinch && span) {
+      view.zoom(
+        (pinch.zoom * span.distance) / pinch.distance,
+        imageToClient(pinch.anchor, view.snapshot()),
+        span.center,
+      );
+      return;
+    }
+  }
   const d = drag;
   if (!d || event.pointerId !== d.pointerId) return;
   if (
     Math.hypot(
       event.clientX - d.startClient.x,
       event.clientY - d.startClient.y,
-    ) >= 3
+    ) >= (event.pointerType === "touch" ? 8 : 3)
   )
     d.moved = true;
   if (d.pan) {
@@ -790,13 +832,20 @@ document.addEventListener("keydown", (event) => {
 for (const dialog of document.querySelectorAll("dialog"))
   dialog.addEventListener("toggle", clearHover);
 function finishDrag(cancel: boolean, event?: PointerEvent) {
+  if (cancel) {
+    pinch = null;
+    touchNavigation = touches.size > 0;
+  }
   if (!drag) return;
   const previous = drag;
   drag = null;
-  if (viewport.hasPointerCapture(previous.pointerId))
+  if (
+    !touches.has(previous.pointerId) &&
+    viewport.hasPointerCapture(previous.pointerId)
+  )
     viewport.releasePointerCapture(previous.pointerId);
   if (cancel) {
-    if (previous.pan)
+    if (previous.pan && touches.size < 2)
       viewport.scrollTo(previous.scrollLeft, previous.scrollTop);
     status("操作を取り消しました。");
   } else if (
@@ -812,13 +861,22 @@ function finishDrag(cancel: boolean, event?: PointerEvent) {
   refresh();
 }
 viewport.addEventListener("pointerup", (event) => {
-  if (event.pointerId !== drag?.pointerId) return;
   updateDrag(event);
+  if (touches.delete(event.pointerId)) {
+    pinch = null;
+    touchNavigation = touchNavigation && touches.size > 0;
+  }
+  if (event.pointerId !== drag?.pointerId) return;
   finishDrag(false, event);
 });
 for (const type of ["pointercancel", "lostpointercapture"])
   viewport.addEventListener(type, (event) => {
-    if ((event as PointerEvent).pointerId === drag?.pointerId) finishDrag(true);
+    const { pointerId } = event as PointerEvent;
+    if (touches.delete(pointerId)) {
+      pinch = null;
+      touchNavigation = touches.size > 0;
+    }
+    if (pointerId === drag?.pointerId) finishDrag(true);
   });
 viewport.addEventListener("auxclick", (event) => {
   if (event.button === 1) event.preventDefault();
@@ -827,6 +885,10 @@ window.addEventListener("blur", () => {
   space = false;
   clearHover();
   finishDrag(true);
+  for (const id of touches.keys())
+    if (viewport.hasPointerCapture(id)) viewport.releasePointerCapture(id);
+  touches.clear();
+  touchNavigation = false;
   refresh();
 });
 

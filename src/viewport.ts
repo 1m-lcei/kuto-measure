@@ -60,15 +60,17 @@ export function createViewport(
     render();
     viewport.scrollTo(0, 0);
   };
-  const zoom = (next: number, anchor = center()) => {
+  const zoom = (next: number, anchor = center(), destination = anchor) => {
     if (!size || isEditing()) return;
     const before = clientToImage(anchor, snapshot());
     state.zoom = Math.max(Math.min(0.1, fitScale()), Math.min(10, next));
     state.fit = false;
     render();
     const after = snapshot();
-    viewport.scrollLeft += after.origin.x + before.x * state.zoom - anchor.x;
-    viewport.scrollTop += after.origin.y + before.y * state.zoom - anchor.y;
+    viewport.scrollLeft +=
+      after.origin.x + before.x * state.zoom - destination.x;
+    viewport.scrollTop +=
+      after.origin.y + before.y * state.zoom - destination.y;
     onChange();
   };
   viewport.addEventListener(

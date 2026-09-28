@@ -6,6 +6,7 @@ import { expect } from "playwright/test";
 import { checkGameArea } from "./game-area";
 import { checkInteractions } from "./interactions";
 import { checkProject } from "./project";
+import { checkTouch } from "./touch";
 
 // Serve the actual production artifact under a project-site path; no app test hooks.
 const root = resolve("dist");
@@ -1039,6 +1040,19 @@ try {
         await checkProject(projectPage, name, await imagePayload(projectPage));
       } finally {
         await projectPage.close();
+      }
+      if (name === "chromium") {
+        const touchContext = await browser.newContext({
+          viewport: { width: 900, height: 1000 },
+          hasTouch: true,
+        });
+        try {
+          const touchPage = await touchContext.newPage();
+          await touchPage.goto(`http://127.0.0.1:${server.port}/nested/`);
+          await checkTouch(touchPage, await imagePayload(touchPage));
+        } finally {
+          await touchContext.close();
+        }
       }
       assert.deepEqual(errors, []);
       console.log(`${name}: passed`);
