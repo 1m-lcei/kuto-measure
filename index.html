@@ -201,7 +201,7 @@
                 <p id="scale-hint">
                   <span data-state="unset">基準円をゲーム内の円に合わせ、その半径を入力してください。</span>
                   <span data-state="absolute" hidden>地面上の距離をゲーム内の数値で表示しています。</span>
-                  <span data-state="relative" hidden>最初の測距線を1として、地面上の距離を表示しています。</span>
+                  <span data-state="relative" hidden>先頭の測距線を1として、地面上の距離を表示しています。</span>
                   <span data-state="invalid" hidden>キャリブレーションの設定を確認してください。</span>
                 </p>
                 <label>
@@ -307,6 +307,13 @@
                   <input id="guide-radius" type="number" min="0" step="any">
                 </label>
                 <p id="object-detail" class="detail"></p>
+                <div id="object-order" hidden>
+                  <p id="object-order-hint" class="muted">同じ種類の中で並び替えます。</p>
+                  <div class="endpoint-fields">
+                    <button id="object-up" type="button" aria-describedby="object-order-hint" disabled>↑ 上へ</button>
+                    <button id="object-down" type="button" aria-describedby="object-order-hint" disabled>↓ 下へ</button>
+                  </div>
+                </div>
               </section>
               <section id="measure-panel">
                 <div class="section-title"><h2>対象を指定して測る</h2></div>
@@ -374,7 +381,7 @@
         ゲーム領域の入力中は破線でプレビューし、「適用」で測定に反映します。「取消」またはEscapeで入力を戻せます。ピンの画像上の位置は保ちますが、基準円の形と測距値は変わるため確認してください。領域外の注釈は削除せず非表示にします。Undo／Redoに対応し、領域設定は保存した基準には含めません。赤い境界線と破線はPNGに含まれません。
       </p>
       <p>
-        基準円は距離スケールだけを決めます。半径の設定後は基準パネルを閉じます（オプションで解除できます）。未設定時は最初の測距線を1とする相対距離を表示し、その線を動かすと比率も更新します。削除時は次の線を基準にします。最初の線が長さ0、または端点のグループが空の場合は距離スケール未設定です。初期カメラ値は推定値です。
+        基準円は距離スケールだけを決めます。半径の設定後は基準パネルを閉じます（オプションで解除できます）。未設定時は先頭の測距線を1とする相対距離を表示し、その線を動かすと比率も更新します。並び替え・削除で先頭が変わると、新しい先頭の線が基準になります。先頭の線が長さ0、または端点のグループが空の場合は距離スケール未設定です。初期カメラ値は推定値です。
       </p>
       <p>
         PNGは元解像度で画像全体を書き出します。ラベルは元解像度で配置し直し、選択表示・薄表示は含めません。対応ブラウザではOSの保存ダイアログで名前と保存先を指定できます。非対応の場合は通常のダウンロードを開始し、保存ダイアログの表示や保存先はブラウザの設定に従います。

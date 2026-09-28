@@ -430,6 +430,13 @@ function editDocument(edit: Edit) {
       status("ゲーム領域を更新しました。基準円の位置と形を確認してください。");
     if (edit.type === "confirm-area")
       status("ゲーム領域を確認済みにしました。");
+    if (edit.type === "reorder")
+      status(
+        "並び順を変更しました。" +
+          (edit.target.kind === "measurement" && !next.reference?.radiusGame
+            ? "先頭の測距線を相対距離の基準にしています。"
+            : ""),
+      );
     return true;
   } catch (e) {
     showError(e);

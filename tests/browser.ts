@@ -443,6 +443,78 @@ try {
           Math.abs(gap - 2) < 0.1,
           `Leader must meet the text halo: ${gap}px`,
         );
+      await modes.getByRole("button", { name: /ピン/ }).click();
+      await clickImage(page, 1200, 550);
+      await page.locator("#measure-to").selectOption({ index: 3 });
+      await page.locator("#add-measure").click();
+      const relativeRows = page.locator(
+        '#object-list [data-object-key^="measurement:"]',
+      );
+      const up = page.getByRole("button", { name: "↑ 上へ", exact: true });
+      const down = page.getByRole("button", { name: "↓ 下へ", exact: true });
+      await expect(relativeRows).toHaveCount(2);
+      const originalKeys = await relativeRows.evaluateAll((rows) =>
+        rows.map((row) => row.getAttribute("data-object-key")),
+      );
+      const originalValues = await relativeRows
+        .locator("small")
+        .allTextContents();
+      const ratio = Number(originalValues[1]);
+      assert(ratio > 0 && ratio !== 1);
+      await expect(up).toBeEnabled();
+      await expect(down).toBeDisabled();
+      await up.focus();
+      await page.keyboard.press("Enter");
+      await expect(relativeRows.first()).toHaveAttribute(
+        "data-object-key",
+        originalKeys[1] ?? "",
+      );
+      await expect(relativeRows.first()).toBeFocused();
+      await expect(relativeRows.first()).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      await expect(relativeRows.first().locator(".object-type")).toContainText(
+        "基準",
+      );
+      await expect(relativeRows.last().locator(".object-type")).toHaveText(
+        "測距線",
+      );
+      await expect(relativeRows.first().locator("small")).toHaveText("1.0000");
+      await expect
+        .poll(async () =>
+          Math.abs(
+            Number(await relativeRows.last().locator("small").textContent()) -
+              1 / ratio,
+          ),
+        )
+        .toBeLessThan(0.001);
+      await expect(up).toBeDisabled();
+      await expect(down).toBeEnabled();
+      await expect(page.locator("#status")).toContainText("相対距離の基準");
+      await expect(
+        page.locator(
+          `#overlay [data-part="label"][data-key="${originalKeys[1]}"] text`,
+        ),
+      ).toHaveText("1.0000");
+      await page.locator("#undo").click();
+      await expect(relativeRows.locator("small")).toHaveText(originalValues);
+      await expect(relativeRows.first()).toHaveAttribute(
+        "data-object-key",
+        originalKeys[0] ?? "",
+      );
+      await page.locator("#redo").click();
+      await expect(relativeRows.first()).toHaveAttribute(
+        "data-object-key",
+        originalKeys[1] ?? "",
+      );
+      await down.click();
+      await expect(relativeRows.locator("small")).toHaveText(originalValues);
+      await expect(relativeRows.last()).toBeFocused();
+      await page.screenshot({
+        path: `test-results/${name}-reorder.png`,
+        fullPage: true,
+      });
       await page
         .getByLabel("画像を開く")
         .setInputFiles(await imagePayload(page));

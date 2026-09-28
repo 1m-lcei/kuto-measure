@@ -320,6 +320,21 @@ export function createPanels(actions: {
   element("delete").addEventListener("click", () => {
     if (selection) actions.edit({ type: "delete", target: selection });
   });
+  for (const [id, direction] of [
+    ["object-up", -1],
+    ["object-down", 1],
+  ] as const) {
+    const button = element<HTMLButtonElement>(id);
+    button.addEventListener("click", () => {
+      if (!selection || selection.kind === "reference") return;
+      if (actions.edit({ type: "reorder", target: selection, direction })) {
+        if (button.disabled)
+          element("object-list")
+            .querySelector<HTMLButtonElement>('[aria-pressed="true"]')
+            ?.focus({ preventScroll: true });
+      }
+    });
+  }
   element("add-group").addEventListener("click", () => {
     const id = crypto.randomUUID();
     actions.edit({
@@ -415,6 +430,17 @@ export function createPanels(actions: {
       element<HTMLButtonElement>("undo").disabled = !history.past.length;
       element<HTMLButtonElement>("redo").disabled = !history.future.length;
       element<HTMLButtonElement>("delete").disabled = !selection;
+      const ordered =
+        selection && selection.kind !== "reference"
+          ? doc[`${selection.kind}s`]
+          : [];
+      const position = ordered.findIndex(
+        (item) => selection?.kind !== "reference" && item.id === selection?.id,
+      );
+      element("object-order").hidden = !ordered.length;
+      element<HTMLButtonElement>("object-up").disabled = position <= 0;
+      element<HTMLButtonElement>("object-down").disabled =
+        position < 0 || position >= ordered.length - 1;
       element<HTMLButtonElement>("add-group").disabled = !p;
       radius.disabled = !doc.reference;
       setValue(radius, doc.reference?.radiusGame?.toString() ?? "");
@@ -580,7 +606,9 @@ export function createPanels(actions: {
             ? formatDistance(measuredDistance(doc, m), doc)
             : "グループが空",
           "↔",
-          "測距線",
+          !doc.reference?.radiusGame && m === doc.measurements[0]
+            ? "測距線 · 基準"
+            : "測距線",
         );
       for (const g of doc.guides) {
         const c = resolveCenter(doc, g.center);

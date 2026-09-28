@@ -294,6 +294,11 @@ export type Edit =
   | { type: "measurement"; value: Measurement }
   | { type: "guide"; value: GuideCircle }
   | { type: "reference"; value: ReferenceCircle | null }
+  | {
+      type: "reorder";
+      target: Exclude<Selection, { kind: "reference" }>;
+      direction: -1 | 1;
+    }
   | { type: "delete"; target: Selection };
 const pointValid = (p: GroundPoint) =>
   Number.isFinite(p.x) && Number.isFinite(p.y);
@@ -322,6 +327,17 @@ export function applyEdit(doc: AnalysisDocument, edit: Edit): AnalysisDocument {
       if (!doc.renderArea || doc.renderArea.confirmed) return doc;
       next = { ...doc, renderArea: { ...doc.renderArea, confirmed: true } };
       break;
+    case "reorder": {
+      const key = `${edit.target.kind}s` as const;
+      const items = [...doc[key]];
+      const index = items.findIndex((item) => item.id === edit.target.id);
+      const destination = index + edit.direction;
+      if (index < 0 || destination < 0 || destination >= items.length)
+        return doc;
+      [items[index], items[destination]] = [items[destination], items[index]];
+      next = { ...doc, [key]: items };
+      break;
+    }
     case "reset-reference":
       return applyEdit(
         { ...doc, reference: null },

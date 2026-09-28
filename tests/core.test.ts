@@ -897,6 +897,57 @@ describe("perspective geometry", () => {
   });
 });
 describe("analysis and editing", () => {
+  test("reordering each object kind preserves data, history and saved order", () => {
+    let doc = applyEdit(populated(), {
+      type: "group",
+      value: { id: "h", name: "H" },
+    });
+    for (const id of ["b", "c"]) {
+      doc = applyEdit(doc, {
+        type: "measurement",
+        value: { id, from: endpoint("a"), to: endpoint(id) },
+      });
+      doc = applyEdit(doc, {
+        type: "guide",
+        value: { id, center: endpoint(id), radiusGame: gameDistance(100) },
+      });
+    }
+    for (const kind of ["pin", "group", "measurement", "guide"] as const) {
+      const key = `${kind}s` as const;
+      const items = doc[key];
+      const edit = {
+        type: "reorder",
+        target: { kind, id: items[1].id },
+        direction: -1,
+      } as const;
+      const next = applyEdit(doc, edit);
+      expect(next).toEqual({
+        ...doc,
+        [key]: [items[1], items[0], ...items.slice(2)],
+      });
+      expect(doc[key]).toBe(items);
+      expect(applyEdit(next, edit)).toBe(next);
+      expect(applyEdit(next, { ...edit, direction: 1 })).toEqual(doc);
+      expect(
+        applyEdit(doc, {
+          ...edit,
+          target: { kind, id: items.at(-1)?.id ?? "" },
+          direction: 1,
+        }),
+      ).toBe(doc);
+      expect(applyEdit(doc, { ...edit, target: { kind, id: "missing" } })).toBe(
+        doc,
+      );
+      const history = commit(newHistory(doc), next);
+      expect(undo(history).present).toBe(doc);
+      expect(redo(undo(history)).present).toBe(next);
+      expect(
+        parseProject(serializeProject(next, { width: 1536, height: 709 }))
+          .document,
+      ).toEqual(next);
+      expect(scaleFactor(next)).toBe(scaleFactor(doc));
+    }
+  });
   test("distance labels always show four relative or two calibrated decimals", () => {
     const calibrated = populated();
     const relative = applyEdit(calibrated, { type: "reference", value: null });
@@ -932,6 +983,26 @@ describe("analysis and editing", () => {
       measuredDistance(doc, doc.measurements[1]) ?? -1,
       0.5 / Math.hypot(0.2, 0.4),
     );
+    const reorder = {
+      type: "reorder",
+      target: { kind: "measurement", id: "second" },
+      direction: -1,
+    } as const;
+    const reordered = applyEdit(doc, reorder);
+    expect(reordered.measurements.map((m) => m.id)).toEqual([
+      "second",
+      "first",
+    ]);
+    close(measuredDistance(reordered, reordered.measurements[0]) ?? -1, 1);
+    close(
+      measuredDistance(reordered, reordered.measurements[1]) ?? -1,
+      Math.hypot(0.2, 0.4) / 0.5,
+    );
+    const reorderedHistory = commit(newHistory(doc), reordered);
+    expect(scaleFactor(undo(reorderedHistory).present)).toBe(scaleFactor(doc));
+    expect(scaleFactor(redo(undo(reorderedHistory)).present)).toBe(
+      scaleFactor(reordered),
+    );
     const moved = applyEdit(doc, {
       type: "pin",
       value: { ...doc.pins[1], point: groundPoint(0, 1) },
@@ -950,17 +1021,25 @@ describe("analysis and editing", () => {
       value: { ...doc.pins[1], point: doc.pins[0].point },
     });
     expect(scaleFactor(zero)).toBeNull();
+    expect(scaleFactor(applyEdit(zero, reorder))).toBe(scaleFactor(reordered));
     const pinned = applyEdit(doc, {
       type: "reference",
       value: calibrated.reference,
     });
     expect(scaleFactor(pinned)).toBe(2500);
+    const reorderedPinned = applyEdit(pinned, reorder);
+    expect(scaleFactor(reorderedPinned)).toBe(2500);
+    for (const m of pinned.measurements)
+      expect(measuredDistance(reorderedPinned, m)).toBe(
+        measuredDistance(pinned, m),
+      );
     if (!pinned.reference) throw Error("reference");
     const unset = applyEdit(pinned, {
       type: "reference",
       value: { ...pinned.reference, radiusGame: null },
     });
     expect(scaleFactor(unset)).toBe(scaleFactor(doc));
+    expect(scaleFactor(applyEdit(unset, reorder))).toBe(scaleFactor(reordered));
     const grouped = applyEdit(doc, {
       type: "measurement",
       value: { ...doc.measurements[0], to: { kind: "group", id: "g" } },
@@ -971,6 +1050,7 @@ describe("analysis and editing", () => {
       pins: grouped.pins.map((p) => ({ ...p, groupId: null })),
     };
     expect(scaleFactor(empty)).toBeNull();
+    expect(scaleFactor(applyEdit(empty, reorder))).toBe(scaleFactor(reordered));
     expect(
       renderAnnotations(doc, projection, {
         zoom: 1,
