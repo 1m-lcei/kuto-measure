@@ -53,6 +53,7 @@ export async function checkProject(
   await page.locator("#load-project").click();
   await (await chooser).setFiles(payload);
   await expect(pins).toHaveCount(1);
+  await expect(page.locator("#viewport")).toHaveAttribute("data-mode", "pan");
   assert.equal(
     dialogs.length,
     0,

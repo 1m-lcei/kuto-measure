@@ -538,7 +538,7 @@ try {
       await page.keyboard.press("Escape");
       await expect(page.locator("#viewport")).toHaveAttribute(
         "data-mode",
-        "select",
+        "pan",
       );
       await page
         .getByLabel("画像を開く")
@@ -775,6 +775,7 @@ try {
           initial,
           "Escape failed to cancel drag",
         );
+        await modes.getByRole("button", { name: /選択/ }).click();
         await page.mouse.move(start.x, start.y);
         await page.mouse.down();
         await page.mouse.move(end.x, end.y, { steps: 4 });

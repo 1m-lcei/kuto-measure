@@ -27,6 +27,10 @@ export async function checkInteractions(
       "aria-busy",
       "false",
     );
+    await expect(page.getByRole("application")).toHaveAttribute(
+      "data-mode",
+      "pan",
+    );
   };
   const point = async (x: number, y: number) => {
     const box = await page.locator("#stage").boundingBox();
@@ -430,7 +434,11 @@ export async function checkInteractions(
     ),
   );
   const pinPng = await download();
-  await modes.getByRole("button", { name: /選択/ }).click();
+  await page.keyboard.press("Escape");
+  await expect(modes.getByRole("button", { name: /パン/ })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   const labels = page.locator('#overlay [data-part="label"][data-key^="pin:"]');
   await labels.first().locator(".label-hit").waitFor({ state: "attached" });
   const boxes = await labels.locator(".label-hit").evaluateAll((nodes) =>
@@ -520,6 +528,96 @@ export async function checkInteractions(
   );
   assert.equal(selectedPng.bytes.readUInt32BE(16), 1536);
   assert.equal(selectedPng.bytes.readUInt32BE(20), 709);
+  const viewport = page.getByRole("application");
+  const scroll = () =>
+    viewport.evaluate((el) => ({ x: el.scrollLeft, y: el.scrollTop }));
+  await page.locator("#actual").click();
+  await page.locator("#zoom-in").click();
+  await page.locator("#zoom-in").click();
+  await viewport.evaluate((el) => el.scrollTo(180, 50));
+  await frame();
+  for (const target of [
+    pins.last().locator(".hit"),
+    labels.nth(2).locator(".label-hit"),
+  ]) {
+    const box = await target.boundingBox();
+    assert(box);
+    const before = await scroll();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      box.x + box.width / 2 - 36,
+      box.y + box.height / 2 - 24,
+      { steps: 4 },
+    );
+    await page.mouse.up();
+    assert.deepEqual(await scroll(), { x: before.x + 36, y: before.y + 24 });
+    assert.deepEqual(await pinPositions(), positions);
+    await expect(labels.first()).toHaveAttribute("aria-pressed", "true");
+    await expect(viewport).toHaveAttribute("data-mode", "pan");
+  }
+  await click(850, 500);
+  await expect(
+    page.locator("#object-list").getByRole("button", { pressed: true }),
+  ).toHaveCount(0);
+  await click(600, 350);
+  await expect(pins.last()).toHaveAttribute("aria-pressed", "true");
+  await labels.first().locator(".label-hit").click();
+  const jitterBox = await labels.nth(2).locator(".label-hit").boundingBox();
+  assert(jitterBox);
+  const scrollBeforeClick = await scroll();
+  await page.mouse.move(
+    jitterBox.x + jitterBox.width / 2,
+    jitterBox.y + jitterBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    jitterBox.x + jitterBox.width / 2 + 1,
+    jitterBox.y + jitterBox.height / 2 + 1,
+  );
+  await page.mouse.up();
+  assert.deepEqual(
+    await scroll(),
+    scrollBeforeClick,
+    "click jitter must not pan",
+  );
+  await expect(labels.nth(2)).toHaveAttribute("aria-pressed", "true");
+  await labels.first().focus();
+  await page.keyboard.press("Enter");
+  await expect(labels.first()).toHaveAttribute("aria-pressed", "true");
+  // Temporary pan gestures must never become a selection, even if Space is released first.
+  await viewport.focus();
+  await page.keyboard.down("Space");
+  await page.mouse.move(
+    jitterBox.x + jitterBox.width / 2,
+    jitterBox.y + jitterBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.keyboard.up("Space");
+  await page.mouse.up();
+  await page.mouse.click(
+    jitterBox.x + jitterBox.width / 2,
+    jitterBox.y + jitterBox.height / 2,
+    { button: "middle" },
+  );
+  await expect(labels.first()).toHaveAttribute("aria-pressed", "true");
+  // Escape rolls back a pan without clearing the selection or committing an edit.
+  const beforeCancel = await scroll();
+  const cancelPoint = await point(600, 350);
+  await page.mouse.move(cancelPoint.x, cancelPoint.y);
+  await page.mouse.down();
+  await page.mouse.move(cancelPoint.x - 30, cancelPoint.y - 20, { steps: 4 });
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  assert.deepEqual(await scroll(), beforeCancel);
+  await expect(labels.first()).toHaveAttribute("aria-pressed", "true");
+  assert.deepEqual(await pinPositions(), positions);
+  await page.locator("#fit").click();
+  await frame();
+  assert(
+    pinPng.bytes.equals((await download()).bytes),
+    "pan must not change exported annotations",
+  );
   const labelBox = await labels.first().locator(".label-hit").boundingBox();
   assert(labelBox);
   await modes.getByRole("button", { name: /ピン/ }).click();
@@ -646,7 +744,7 @@ export async function checkInteractions(
       );
     await touch
       .getByRole("group", { name: "操作モード" })
-      .getByRole("button", { name: /選択/ })
+      .getByRole("button", { name: /パン/ })
       .tap();
     const touchLabels = touch.locator(
       '#overlay [data-part="label"][data-key^="pin:"]',

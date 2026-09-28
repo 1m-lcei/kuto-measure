@@ -78,8 +78,8 @@
       <div class="toolbar">
         <fieldset class="tools">
           <legend class="sr-only">操作モード</legend>
-          <button type="button" data-tool="select" aria-pressed="true"><span>↖</span>選択</button>
-          <button type="button" data-tool="pan" aria-pressed="false"><span>✥</span>パン</button>
+          <button type="button" data-tool="pan" aria-pressed="true"><span>✥</span>パン</button>
+          <button type="button" data-tool="select" aria-pressed="false"><span>↖</span>選択・編集</button>
           <button type="button" data-tool="pin" aria-pressed="false"><span>⊕</span>ピン</button>
           <button type="button" data-tool="reference" aria-pressed="false"><span>◎</span>基準円</button>
           <button type="button" data-tool="measure" aria-pressed="false"><span>↔</span>測距線</button>
@@ -367,11 +367,14 @@
         </li>
       </ol>
       <h3>操作</h3>
-      <p>ホイールでズーム。Space＋ドラッグ／中ボタン／パンモードで移動。タッチでは1本指と倍率ボタンを使います。</p>
-      <p>Escapeで取消、Deleteで削除。Ctrl／Cmd＋ZでUndo、Ctrl＋YまたはCtrl／Cmd＋Shift＋ZでRedo。編集は100操作まで戻せます。</p>
-      <p>画像領域をフォーカスし、矢印キー＋Enterで作成。選択したピン・ハンドルは矢印キーで1画像px、Shift付きで10px調整します。</p>
+      <p>通常はパンモードです。対象やラベルの上でもドラッグで表示位置を移動し、クリック・タップで対象を選択します。ホイールでズーム。タッチでは1本指と倍率ボタンを使います。</p>
       <p>
-        選択ツールでは対象の輪郭を強調します。重なるラベルは位置をずらし、クリック・タップ・Enter／Spaceで個別選択できます。ラベルのドラッグでは測定点は動きません。密集時は拡大するかオブジェクト一覧を使ってください。
+        位置や半径の調整は「選択・編集」、配置や描画は各ツールを選びます。ツール使用中もSpace＋ドラッグ／中ボタンドラッグで移動できます。Escapeで操作を取り消してパンに戻ります。
+      </p>
+      <p>Deleteで削除。Ctrl／Cmd＋ZでUndo、Ctrl＋YまたはCtrl／Cmd＋Shift＋ZでRedo。編集は100操作まで戻せます。</p>
+      <p>各作成ツールで画像領域をフォーカスし、矢印キー＋Enterで作成。「選択・編集」では選択したピン・ハンドルを矢印キーで1画像px、Shift付きで10px調整します。</p>
+      <p>
+        「パン」「選択・編集」では対象の輪郭を強調します。重なるラベルは位置をずらし、クリック・タップ・Enter／Spaceで個別選択できます。ラベルのドラッグでは測定点は動きません。密集時は拡大するかオブジェクト一覧を使ってください。
       </p>
       <h3>測定の前提</h3>
       <p>

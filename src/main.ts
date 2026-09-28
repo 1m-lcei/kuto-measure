@@ -60,6 +60,7 @@ interface Drag {
   handle: string | null;
   label: boolean;
   pan: boolean;
+  selectOnClick: boolean;
   scrollLeft: number;
   scrollTop: number;
   moved: boolean;
@@ -68,7 +69,7 @@ let history = newHistory(),
   resource: LoadedImage | null = null,
   projection: Projection | null = null;
 let selection: Selection | null = null,
-  tool: Tool = "select",
+  tool: Tool = "pan",
   drag: Drag | null = null,
   space = false;
 let referenceStart: GroundPoint | null = null,
@@ -138,7 +139,7 @@ const view = createViewport(
 );
 const modeHints: Record<Tool, string> = {
   select: "対象をクリックして選択。ドラッグで位置を調整できます。",
-  pan: "ドラッグして表示位置を移動します。",
+  pan: "ドラッグで表示位置を移動、クリックで対象を選択。位置の調整は「選択・編集」を使います。",
   pin: "画像上をクリックしてピンを配置します。",
   reference: "円の中心、円周の点を順に指定してください。",
   measure: "2つのピンまたはグループ中心を選択してください。",
@@ -254,7 +255,7 @@ function updateHover() {
     }
   }
   if (
-    tool === "select" &&
+    (tool === "select" || tool === "pan") &&
     !space &&
     !drag &&
     !document.querySelector("dialog[open], :popover-open")
@@ -304,7 +305,7 @@ function draw() {
     selection: tool === "pin" ? null : selection,
     interactive: true,
     measureLabel,
-    selectLabels: tool === "select",
+    selectLabels: tool === "select" || tool === "pan",
     coarse: coarse.matches,
     visible: view.visible(),
     cursor,
@@ -474,7 +475,7 @@ function addMeasurement(a: Endpoint, b: Endpoint) {
   const id = crypto.randomUUID();
   editDocument({ type: "measurement", value: { id, from: a, to: b } });
   selection = { kind: "measurement", id };
-  if (tool !== "measure") tool = "select";
+  if (tool !== "measure") tool = "pan";
   measureStart = null;
   refresh();
   status("測距線を追加しました。");
@@ -564,7 +565,7 @@ element("guide-dialog").addEventListener("close", () => {
 function activate(point: ImagePoint, target: Selection | null) {
   if (!projection) return;
   const ground = groundAt(point);
-  if (tool === "select") {
+  if (tool === "select" || tool === "pan") {
     selection = target;
     refresh();
     return;
@@ -663,6 +664,7 @@ viewport.addEventListener("pointerdown", (event) => {
     handle,
     label,
     pan,
+    selectOnClick: tool === "pan" && !space && event.button === 0,
     scrollLeft: viewport.scrollLeft,
     scrollTop: viewport.scrollTop,
     moved: false,
@@ -746,8 +748,10 @@ function updateDrag(event: PointerEvent) {
   )
     d.moved = true;
   if (d.pan) {
-    viewport.scrollLeft = d.scrollLeft - (event.clientX - d.startClient.x);
-    viewport.scrollTop = d.scrollTop - (event.clientY - d.startClient.y);
+    if (d.moved) {
+      viewport.scrollLeft = d.scrollLeft - (event.clientX - d.startClient.x);
+      viewport.scrollTop = d.scrollTop - (event.clientY - d.startClient.y);
+    }
     return;
   }
   if (d.label) return;
@@ -795,12 +799,15 @@ function finishDrag(cancel: boolean, event?: PointerEvent) {
     if (previous.pan)
       viewport.scrollTo(previous.scrollLeft, previous.scrollTop);
     status("操作を取り消しました。");
-  } else if (!previous.pan) {
-    if (previous.moved && !previous.label) {
-      history = commit(history, previous.preview);
-      status("位置を更新しました。");
-    } else if (!previous.moved && event)
-      activate(pointAt(event.clientX, event.clientY), previous.target);
+  } else if (
+    !previous.moved &&
+    event &&
+    (!previous.pan || previous.selectOnClick)
+  ) {
+    activate(pointAt(event.clientX, event.clientY), previous.target);
+  } else if (!previous.pan && previous.moved && !previous.label) {
+    history = commit(history, previous.preview);
+    status("位置を更新しました。");
   }
   refresh();
 }
@@ -904,7 +911,7 @@ document.addEventListener("keydown", (event) => {
     referenceStart = null;
     measureStart = null;
     cursor = null;
-    setTool("select");
+    setTool("pan");
     return;
   }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
@@ -924,7 +931,7 @@ document.addEventListener("keydown", (event) => {
   }
   if (
     event.code === "Space" &&
-    tool === "select" &&
+    (tool === "select" || tool === "pan") &&
     event.target instanceof Element &&
     event.target.closest('[data-part="label"]') &&
     !event.ctrlKey &&
@@ -951,7 +958,7 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
       const target = parseSelection(event.target);
-      if (tool === "select" && target) selectObject(target);
+      if ((tool === "select" || tool === "pan") && target) selectObject(target);
       else activate(cursor ?? view.imageCenter(), target);
       return;
     }
@@ -1018,7 +1025,7 @@ async function openFiles(files: FileList | File[]) {
     referenceStart = null;
     measureStart = null;
     cursor = null;
-    tool = "select";
+    tool = "pan";
     image.src = next.url;
     image.alt = next.name;
     stage.hidden = false;
@@ -1129,7 +1136,7 @@ projectInput.addEventListener("change", async () => {
     panels.cancelArea();
     history = commit(history, next);
     selection = null;
-    setTool("select");
+    setTool("pan");
     element("header-menu").hidePopover();
     showError("");
     status(
