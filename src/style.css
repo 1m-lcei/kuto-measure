@@ -19,8 +19,7 @@
   #overlay .pin-overlap {
     opacity: 0.35;
   }
-  #viewport.pan-ready #overlay [data-key],
-  #viewport[data-mode="pan"] #overlay [data-key] {
+  #viewport.pan-ready #overlay [data-key] {
     cursor: grab;
   }
   #viewport.panning #overlay [data-key] {
@@ -646,7 +645,7 @@
     position: relative;
     height: calc(100dvh - 304px);
     min-height: 430px;
-    overflow: auto;
+    overflow: clip;
     background-color: var(--canvas);
     background-image: radial-gradient(var(--grid) 0.8px, transparent 0.8px);
     background-size: 18px 18px;
@@ -658,8 +657,10 @@
     outline-offset: -4px;
   }
   #stage {
-    position: relative;
-    margin: 24px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    translate: 0px;
     user-select: none;
     touch-action: none;
   }
@@ -679,11 +680,11 @@
   #overlay [data-key] {
     cursor: pointer;
   }
-  #overlay [data-handle],
-  #overlay [data-movable] {
+  #viewport[data-mode="select"] #overlay [aria-pressed="true"][data-handle],
+  #viewport[data-mode="select"] #overlay [aria-pressed="true"][data-movable] {
     cursor: move;
   }
-  #viewport[data-mode="pan"],
+  #viewport,
   #viewport.pan-ready {
     cursor: grab;
   }

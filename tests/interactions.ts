@@ -29,7 +29,7 @@ export async function checkInteractions(
     );
     await expect(page.getByRole("application")).toHaveAttribute(
       "data-mode",
-      "pan",
+      "select",
     );
   };
   const point = async (x: number, y: number) => {
@@ -435,7 +435,7 @@ export async function checkInteractions(
   );
   const pinPng = await download();
   await page.keyboard.press("Escape");
-  await expect(modes.getByRole("button", { name: /パン/ })).toHaveAttribute(
+  await expect(modes.getByRole("button", { name: /選択/ })).toHaveAttribute(
     "aria-pressed",
     "true",
   );
@@ -530,11 +530,13 @@ export async function checkInteractions(
   assert.equal(selectedPng.bytes.readUInt32BE(20), 709);
   const viewport = page.getByRole("application");
   const scroll = () =>
-    viewport.evaluate((el) => ({ x: el.scrollLeft, y: el.scrollTop }));
+    page.locator("#stage").evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      return { x: -box.x, y: -box.y };
+    });
   await page.locator("#actual").click();
   await page.locator("#zoom-in").click();
   await page.locator("#zoom-in").click();
-  await viewport.evaluate((el) => el.scrollTo(180, 50));
   await frame();
   for (const target of [
     pins.last().locator(".hit"),
@@ -554,12 +556,20 @@ export async function checkInteractions(
     assert.deepEqual(await scroll(), { x: before.x + 36, y: before.y + 24 });
     assert.deepEqual(await pinPositions(), positions);
     await expect(labels.first()).toHaveAttribute("aria-pressed", "true");
-    await expect(viewport).toHaveAttribute("data-mode", "pan");
+    await expect(viewport).toHaveAttribute("data-mode", "select");
   }
   await click(850, 500);
   await expect(
     page.locator("#object-list").getByRole("button", { pressed: true }),
   ).toHaveCount(0);
+  const beforeKeyboardPan = await scroll();
+  await page.keyboard.press("ArrowRight");
+  assert.deepEqual(await scroll(), {
+    x: beforeKeyboardPan.x + 40,
+    y: beforeKeyboardPan.y,
+  });
+  await page.keyboard.press("ArrowLeft");
+  assert.deepEqual(await scroll(), beforeKeyboardPan);
   await click(600, 350);
   await expect(pins.last()).toHaveAttribute("aria-pressed", "true");
   await labels.first().locator(".label-hit").click();
@@ -746,7 +756,7 @@ export async function checkInteractions(
       );
     await touch
       .getByRole("group", { name: "操作モード" })
-      .getByRole("button", { name: /パン/ })
+      .getByRole("button", { name: /選択/ })
       .tap();
     const touchLabels = touch.locator(
       '#overlay [data-part="label"][data-key^="pin:"]',

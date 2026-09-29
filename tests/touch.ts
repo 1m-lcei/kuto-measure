@@ -49,8 +49,26 @@ export async function checkTouch(
     await touch("touchStart", pair());
   };
 
-  for (const tool of ["pan", "pin", "select", "reference", "measure"]) {
+  // A second finger on the workspace border still makes this a gesture, not a tap.
+  await page.locator('[data-tool="pin"]').click();
+  const inside = { id: 1, ...center };
+  const outside = { id: 2, x: box.x + box.width + 5, y: center.y };
+  await touch("touchStart", [inside]);
+  await touch("touchStart", [inside, outside]);
+  await touch("touchEnd", [inside]);
+  await expect(pins).toHaveCount(0);
+  await touch("touchEnd");
+  await expect(pins).toHaveCount(0);
+
+  await expect(page.locator('[data-tool="pan"]')).toHaveCount(0);
+  for (const tool of ["select", "pin", "reference", "measure"]) {
     await page.locator(`[data-tool="${tool}"]`).click();
+    const beforePan = await state();
+    await touch("touchStart", [{ id: 1, ...center }]);
+    await touch("touchMove", [{ id: 1, x: center.x + 20, y: center.y - 15 }]);
+    await touch("touchEnd");
+    close((await state()).x, beforePan.x + 20, `${tool}: one finger pans`);
+    await expect(pins).toHaveCount(0);
     const before = await state();
     await start();
     await touch("touchMove", pair(1.5, -20, -15));
@@ -72,15 +90,27 @@ export async function checkTouch(
     close(panned.y, zoomed.y - 20, `${tool}: two-finger pan y`);
     await touch("touchMove", pair());
     close((await state()).zoom * 100, before.zoom * 100, `${tool}: pinch in`);
-    // Lifting only one finger must not turn the remaining contact into an edit.
-    await touch("touchEnd", pair().slice(0, 1));
+    // Lifting one finger continues panning, and putting it back resumes the pinch.
+    await touch("touchEnd", pair().slice(1));
     const released = await state();
     await touch("touchMove", [{ id: 1, x: center.x + 40, y: center.y + 20 }]);
-    assert.deepEqual(await state(), released);
+    const continued = await state();
+    close(continued.x, released.x + 100, `${tool}: remaining finger pans x`);
+    close(continued.y, released.y + 50, `${tool}: remaining finger pans y`);
+    await touch("touchStart", [
+      { id: 1, x: center.x + 40, y: center.y + 20 },
+      pair()[1],
+    ]);
+    assert.deepEqual(
+      await state(),
+      continued,
+      "adding the finger back must not jump",
+    );
     await touch("touchEnd");
     await expect(pins).toHaveCount(0);
     await expect(page.locator("#undo")).toBeDisabled();
     await page.keyboard.press("Escape");
+    await page.locator("#fit").click();
     await page.locator("#actual").click();
   }
 
@@ -114,6 +144,19 @@ export async function checkTouch(
     ]);
   const original = await position();
   await page.locator('[data-tool="select"]').click();
+  await touch("touchStart", [{ id: 1, x: p.x - 90, y: p.y }]);
+  await touch("touchEnd");
+  await touch("touchStart", [{ ...p, x: p.x + 4, y: p.y + 3 }]);
+  await touch("touchMove", [{ ...p, x: p.x + 24, y: p.y + 3 }]);
+  await touch("touchEnd");
+  assert.deepEqual(
+    await position(),
+    original,
+    "dragging an unselected pin only pans",
+  );
+  await touch("touchStart", [{ ...p, x: p.x + 24, y: p.y + 3 }]);
+  await touch("touchEnd");
+  await expect(pin.locator("..")).toHaveAttribute("aria-pressed", "true");
   const pinBox = await pin.boundingBox();
   assert(pinBox);
   const finger = {
@@ -139,11 +182,10 @@ export async function checkTouch(
   await expect(pins).toHaveCount(0);
   await expect(page.locator("#undo")).toBeDisabled();
 
-  // Cancelling, losing capture, a third finger, and resizing must all recover cleanly.
+  // Cancelling, losing capture, and resizing must all recover cleanly.
   for (const interruption of [
     "cancel",
     "capture",
-    "third",
     "escape",
     "resize",
     "blur",
@@ -163,11 +205,6 @@ export async function checkTouch(
           );
         });
         await touch("touchMove", pair(1.1));
-      } else if (interruption === "third") {
-        await touch("touchStart", [
-          ...pair(),
-          { id: 3, x: center.x, y: center.y + 70 },
-        ]);
       } else if (interruption === "escape") await page.keyboard.press("Escape");
       else if (interruption === "resize")
         await page.setViewportSize({ width: 900, height: 950 });
@@ -192,7 +229,7 @@ export async function checkTouch(
     await frame();
   }
 
-  // Pinching from fit must keep working when scrollbars first appear.
+  // Pinching across the fit scale must stay proportional without clamping the anchor.
   await page.locator("#fit").click();
   const fitted = await state();
   await start();
@@ -216,8 +253,25 @@ export async function checkTouch(
   await start();
   await touch("touchMove", pair(2));
   close((await state()).zoom * 100, mobileFit.zoom * 200, "phone-size pinch");
+  const mobileZoomed = await state();
+  close(
+    mobileZoomed.y +
+      ((center.y - mobileFit.y) / mobileFit.zoom) * mobileZoomed.zoom,
+    center.y,
+    "phone-size pinch preserves the image point under the fingers",
+  );
   await touch("touchEnd");
   await expect(pins).toHaveCount(0);
+  // At a zoom limit, reversing the fingers must respond immediately.
+  await page.locator("#actual").click();
+  await touch("touchStart", pair(0.05).slice(0, 1));
+  await touch("touchStart", pair(0.05));
+  await touch("touchMove", pair(1));
+  close((await state()).zoom * 100, 1000, "maximum zoom");
+  await touch("touchMove", pair(0.9));
+  close((await state()).zoom * 100, 900, "reverse at maximum zoom");
+  await touch("touchEnd");
+  await page.locator("#fit").click();
   await page.screenshot({
     path: "test-results/chromium-touch.png",
     fullPage: true,

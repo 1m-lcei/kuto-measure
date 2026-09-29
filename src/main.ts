@@ -15,7 +15,6 @@ import {
   type ImagePoint,
   type ImageRect,
   imagePoint,
-  imageToClient,
   imageToGround,
   inImage,
   inRect,
@@ -44,6 +43,7 @@ import {
   sameCalibration,
   sameEndpoint,
   scaleFactor,
+  selectionKey,
   undo,
 } from "./model";
 import { createPanels, element, showState } from "./panels";
@@ -51,7 +51,7 @@ import { fitProjectArea, parseProject, serializeProject } from "./project";
 import { renderAnnotations } from "./render";
 import { createViewport } from "./viewport";
 
-type Tool = "select" | "pan" | "pin" | "reference" | "measure" | "guide";
+type Tool = "select" | "pin" | "reference" | "measure" | "guide";
 interface Drag {
   pointerId: number;
   startClient: { x: number; y: number };
@@ -62,21 +62,21 @@ interface Drag {
   handle: string | null;
   label: boolean;
   pan: boolean;
-  selectOnClick: boolean;
-  scrollLeft: number;
-  scrollTop: number;
+  activateOnClick: boolean;
+  viewX: number;
+  viewY: number;
   moved: boolean;
 }
 let history = newHistory(),
   resource: LoadedImage | null = null,
   projection: Projection | null = null;
 let selection: Selection | null = null,
-  tool: Tool = "pan",
+  tool: Tool = "select",
   drag: Drag | null = null,
   space = false;
 const touches = new Map<number, ClientPoint>();
 let touchNavigation = false;
-let pinch: { distance: number; zoom: number; anchor: ImagePoint } | null = null;
+let pinch: { distance: number; center: ClientPoint } | null = null;
 let referenceStart: GroundPoint | null = null,
   measureStart: Endpoint | null = null,
   pendingGuide: CircleCenter | null = null;
@@ -143,8 +143,8 @@ const view = createViewport(
   () => !!drag,
 );
 const modeHints: Record<Tool, string> = {
-  select: "対象をクリックして選択。ドラッグで位置を調整できます。",
-  pan: "ドラッグで表示位置を移動、クリックで対象を選択。位置の調整は「選択・編集」を使います。",
+  select:
+    "ドラッグで表示位置を移動、クリック・タップで対象を選択。選択済みのピンやハンドルはドラッグで調整できます。",
   pin: "画像上をクリックしてピンを配置します。",
   reference: "円の中心、円周の点を順に指定してください。",
   measure: "2つのピンまたはグループ中心を選択してください。",
@@ -260,7 +260,7 @@ function updateHover() {
     }
   }
   if (
-    (tool === "select" || tool === "pan") &&
+    tool === "select" &&
     !space &&
     !drag &&
     !document.querySelector("dialog[open], :popover-open")
@@ -287,6 +287,7 @@ function clearHover() {
   updateHover();
 }
 function draw() {
+  updatePinch();
   frame = 0;
   const focusHover = keyboardHover;
   element<HTMLOutputElement>("zoom").value = resource
@@ -310,7 +311,7 @@ function draw() {
     selection: tool === "pin" ? null : selection,
     interactive: true,
     measureLabel,
-    selectLabels: tool === "select" || tool === "pan",
+    selectLabels: tool === "select",
     coarse: coarse.matches,
     visible: view.visible(),
     cursor,
@@ -368,9 +369,7 @@ function refresh() {
   )) {
     const mode = button.dataset.tool as Tool;
     button.disabled =
-      mode === "pan"
-        ? !resource
-        : !projection || (mode === "guide" && !scaleFactor(history.present));
+      !projection || (mode === "guide" && !scaleFactor(history.present));
     button.setAttribute("aria-pressed", String(tool === mode));
   }
   for (const id of ["fit", "actual", "zoom-in", "zoom-out"])
@@ -480,7 +479,7 @@ function addMeasurement(a: Endpoint, b: Endpoint) {
   const id = crypto.randomUUID();
   editDocument({ type: "measurement", value: { id, from: a, to: b } });
   selection = { kind: "measurement", id };
-  if (tool !== "measure") tool = "pan";
+  if (tool !== "measure") tool = "select";
   measureStart = null;
   refresh();
   status("測距線を追加しました。");
@@ -570,7 +569,7 @@ element("guide-dialog").addEventListener("close", () => {
 function activate(point: ImagePoint, target: Selection | null) {
   if (!projection) return;
   const ground = groundAt(point);
-  if (tool === "select" || tool === "pan") {
+  if (tool === "select") {
     selection = target;
     refresh();
     return;
@@ -640,41 +639,60 @@ function activate(point: ImagePoint, target: Selection | null) {
 }
 function touchSpan() {
   const [a, b] = touches.values();
-  return touches.size === 2
-    ? {
-        center: clientPoint((a.x + b.x) / 2, (a.y + b.y) / 2),
-        distance: Math.hypot(a.x - b.x, a.y - b.y),
-      }
-    : null;
+  return !a
+    ? null
+    : b
+      ? {
+          center: clientPoint((a.x + b.x) / 2, (a.y + b.y) / 2),
+          distance: Math.hypot(a.x - b.x, a.y - b.y),
+        }
+      : { center: a, distance: 0 };
 }
+function updatePinch() {
+  const span = touchSpan();
+  if (!pinch || !span) return;
+  if (
+    pinch.distance === span.distance &&
+    pinch.center.x === span.center.x &&
+    pinch.center.y === span.center.y
+  )
+    return;
+  const ratio =
+    pinch.distance > 1 && span.distance > 1
+      ? span.distance / pinch.distance
+      : 1;
+  view.zoom(view.state.zoom * ratio, pinch.center, span.center);
+  pinch = span;
+}
+// Track all contacts, including a second finger just outside the image workspace.
+document.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (event.pointerType !== "touch") return;
+    updatePinch();
+    touches.set(event.pointerId, clientPoint(event.clientX, event.clientY));
+    if (touches.size < 2) return;
+    const active = !!drag || !!pinch;
+    finishDrag(true);
+    if (
+      active &&
+      event.target instanceof Node &&
+      viewport.contains(event.target)
+    ) {
+      viewport.setPointerCapture(event.pointerId);
+      pinch = touchSpan();
+      status("2本指で表示位置を移動・拡大縮小できます。");
+    }
+  },
+  true,
+);
 viewport.addEventListener("pointerdown", (event) => {
   if (!resource || loading || ![0, 1].includes(event.button)) return;
   if (event.pointerType === "touch") {
     event.preventDefault();
     clearHover();
-    touches.set(event.pointerId, clientPoint(event.clientX, event.clientY));
-    viewport.setPointerCapture(event.pointerId);
-    // A changed contact count ends navigation; editing waits for all fingers up.
-    if (touchNavigation) {
-      pinch = null;
-      return;
-    }
-    const span = touchSpan();
-    if (span) {
-      finishDrag(true);
-      touchNavigation = true;
-      pinch = {
-        distance: Math.max(1, span.distance),
-        zoom: view.state.zoom,
-        anchor: pointAt(span.center.x, span.center.y),
-      };
-      status("2本指で表示位置を移動・拡大縮小できます。");
-      return;
-    }
   }
   if (drag || touchNavigation || !event.isPrimary) return;
-  const pan = tool === "pan" || space || event.button === 1;
-  if (!pan && !projection) return;
   event.preventDefault();
   const node = event.target instanceof Element ? event.target : null;
   const target = parseSelection(node),
@@ -684,6 +702,16 @@ viewport.addEventListener("pointerdown", (event) => {
     handle =
       node?.closest("[data-handle]")?.getAttribute("data-handle") ?? null;
   const start = pointAt(event.clientX, event.clientY);
+  const selected =
+    target && selection && selectionKey(target) === selectionKey(selection);
+  const movable = node?.closest("[data-movable], [data-handle]");
+  const pan =
+    space ||
+    event.button === 1 ||
+    tool !== "select" ||
+    !selected ||
+    !movable ||
+    label;
   drag = {
     pointerId: event.pointerId,
     startClient: { x: event.clientX, y: event.clientY },
@@ -694,15 +722,14 @@ viewport.addEventListener("pointerdown", (event) => {
     handle,
     label,
     pan,
-    selectOnClick: tool === "pan" && !space && event.button === 0,
-    scrollLeft: viewport.scrollLeft,
-    scrollTop: viewport.scrollTop,
+    activateOnClick: !space && event.button === 0,
+    viewX: view.state.x,
+    viewY: view.state.y,
     moved: false,
   };
-  if (!pan && tool === "select" && !label) selection = target;
   viewport.focus({ preventScroll: true });
   viewport.setPointerCapture(event.pointerId);
-  refresh();
+  viewport.classList.toggle("panning", pan);
 });
 function moveEdit(
   base: AnalysisDocument,
@@ -770,13 +797,8 @@ function moveEdit(
 function updateDrag(event: PointerEvent) {
   if (touches.has(event.pointerId)) {
     touches.set(event.pointerId, clientPoint(event.clientX, event.clientY));
-    const span = touchSpan();
-    if (pinch && span) {
-      view.zoom(
-        (pinch.zoom * span.distance) / pinch.distance,
-        imageToClient(pinch.anchor, view.snapshot()),
-        span.center,
-      );
+    if (pinch) {
+      schedule();
       return;
     }
   }
@@ -791,8 +813,10 @@ function updateDrag(event: PointerEvent) {
     d.moved = true;
   if (d.pan) {
     if (d.moved) {
-      viewport.scrollLeft = d.scrollLeft - (event.clientX - d.startClient.x);
-      viewport.scrollTop = d.scrollTop - (event.clientY - d.startClient.y);
+      view.move(
+        d.viewX + event.clientX - d.startClient.x,
+        d.viewY + event.clientY - d.startClient.y,
+      );
     }
     return;
   }
@@ -806,7 +830,7 @@ function updateDrag(event: PointerEvent) {
     schedule();
   }
 }
-viewport.addEventListener("pointermove", updateDrag);
+document.addEventListener("pointermove", updateDrag);
 viewport.addEventListener("pointermove", (event) => {
   keyboardHover = false;
   hoverPoint =
@@ -846,13 +870,9 @@ function finishDrag(cancel: boolean, event?: PointerEvent) {
     viewport.releasePointerCapture(previous.pointerId);
   if (cancel) {
     if (previous.pan && touches.size < 2)
-      viewport.scrollTo(previous.scrollLeft, previous.scrollTop);
+      view.move(previous.viewX, previous.viewY);
     status("操作を取り消しました。");
-  } else if (
-    !previous.moved &&
-    event &&
-    (!previous.pan || previous.selectOnClick)
-  ) {
+  } else if (!previous.moved && event && previous.activateOnClick) {
     activate(pointAt(event.clientX, event.clientY), previous.target);
   } else if (!previous.pan && previous.moved && !previous.label) {
     history = commit(history, previous.preview);
@@ -860,24 +880,29 @@ function finishDrag(cancel: boolean, event?: PointerEvent) {
   }
   refresh();
 }
-viewport.addEventListener("pointerup", (event) => {
+document.addEventListener("pointerup", (event) => {
   updateDrag(event);
+  updatePinch();
   if (touches.delete(event.pointerId)) {
-    pinch = null;
+    if (pinch) pinch = touchSpan();
     touchNavigation = touchNavigation && touches.size > 0;
   }
   if (event.pointerId !== drag?.pointerId) return;
   finishDrag(false, event);
 });
-for (const type of ["pointercancel", "lostpointercapture"])
-  viewport.addEventListener(type, (event) => {
-    const { pointerId } = event as PointerEvent;
-    if (touches.delete(pointerId)) {
-      pinch = null;
-      touchNavigation = touches.size > 0;
-    }
-    if (pointerId === drag?.pointerId) finishDrag(true);
-  });
+document.addEventListener("pointercancel", (event) => {
+  if (touches.delete(event.pointerId) || event.pointerId === drag?.pointerId)
+    finishDrag(true);
+});
+viewport.addEventListener("lostpointercapture", (event) => {
+  // Ignore capture transfers from SVG children to the workspace itself.
+  if (
+    event.target === viewport &&
+    !viewport.hasPointerCapture(event.pointerId) &&
+    (touches.has(event.pointerId) || event.pointerId === drag?.pointerId)
+  )
+    finishDrag(true);
+});
 viewport.addEventListener("auxclick", (event) => {
   if (event.button === 1) event.preventDefault();
 });
@@ -908,7 +933,7 @@ function keyboardMove(event: KeyboardEvent) {
   };
   const d = delta[event.key];
   if (!d) return;
-  if (tool !== "select" && tool !== "pan") {
+  if (tool !== "select") {
     const old = cursor ?? view.imageCenter(),
       next = imagePoint(old.x + d[0], old.y + d[1]);
     if (inImage(next, resource)) {
@@ -918,7 +943,15 @@ function keyboardMove(event: KeyboardEvent) {
     event.preventDefault();
     return;
   }
-  if (tool !== "select" || !selection) return;
+  if (!selection) {
+    event.preventDefault();
+    const panStep = event.shiftKey ? 200 : 40;
+    view.move(
+      view.state.x - Math.sign(d[0]) * panStep,
+      view.state.y - Math.sign(d[1]) * panStep,
+    );
+    return;
+  }
   const node =
     event.target instanceof Element ? event.target.closest("[data-key]") : null;
   const handle =
@@ -973,7 +1006,7 @@ document.addEventListener("keydown", (event) => {
     referenceStart = null;
     measureStart = null;
     cursor = null;
-    setTool("pan");
+    setTool("select");
     return;
   }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
@@ -993,7 +1026,7 @@ document.addEventListener("keydown", (event) => {
   }
   if (
     event.code === "Space" &&
-    (tool === "select" || tool === "pan") &&
+    tool === "select" &&
     event.target instanceof Element &&
     event.target.closest('[data-part="label"]') &&
     !event.ctrlKey &&
@@ -1020,7 +1053,7 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
       const target = parseSelection(event.target);
-      if ((tool === "select" || tool === "pan") && target) selectObject(target);
+      if (tool === "select" && target) selectObject(target);
       else activate(cursor ?? view.imageCenter(), target);
       return;
     }
@@ -1087,7 +1120,7 @@ async function openFiles(files: FileList | File[]) {
     referenceStart = null;
     measureStart = null;
     cursor = null;
-    tool = "pan";
+    tool = "select";
     image.src = next.url;
     image.alt = next.name;
     stage.hidden = false;
@@ -1198,7 +1231,7 @@ projectInput.addEventListener("change", async () => {
     panels.cancelArea();
     history = commit(history, next);
     selection = null;
-    setTool("pan");
+    setTool("select");
     element("header-menu").hidePopover();
     showError("");
     status(

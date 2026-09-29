@@ -11,8 +11,8 @@ import {
 export interface ViewportState {
   zoom: number;
   fit: boolean;
-  scrollLeft: number;
-  scrollTop: number;
+  x: number;
+  y: number;
 }
 export function createViewport(
   viewport: HTMLElement,
@@ -24,8 +24,8 @@ export function createViewport(
   const state: ViewportState = {
     zoom: 1,
     fit: true,
-    scrollLeft: 0,
-    scrollTop: 0,
+    x: 24,
+    y: 24,
   };
   let size: Size | null = null;
   const fitScale = () =>
@@ -37,8 +37,14 @@ export function createViewport(
         )
       : 1;
   const snapshot = (): ViewportSnapshot => {
-    const r = stage.getBoundingClientRect();
-    return { origin: clientPoint(r.left, r.top), zoom: state.zoom };
+    const r = viewport.getBoundingClientRect();
+    return {
+      origin: clientPoint(
+        r.left + viewport.clientLeft + state.x,
+        r.top + viewport.clientTop + state.y,
+      ),
+      zoom: state.zoom,
+    };
   };
   const center = (): ClientPoint => {
     const r = viewport.getBoundingClientRect();
@@ -51,37 +57,33 @@ export function createViewport(
     if (!size) return;
     stage.style.width = `${size.width * state.zoom}px`;
     stage.style.height = `${size.height * state.zoom}px`;
+    stage.style.translate = `${state.x}px ${state.y}px`;
     onChange();
   };
   const fit = () => {
     if (!size) return;
     state.fit = true;
     state.zoom = fitScale();
+    state.x = (viewport.clientWidth - size.width * state.zoom) / 2;
+    state.y = (viewport.clientHeight - size.height * state.zoom) / 2;
     render();
-    viewport.scrollTo(0, 0);
   };
   const zoom = (next: number, anchor = center(), destination = anchor) => {
     if (!size || isEditing()) return;
-    const before = clientToImage(anchor, snapshot());
+    const previous = snapshot();
+    const before = clientToImage(anchor, previous);
     state.zoom = Math.max(Math.min(0.1, fitScale()), Math.min(10, next));
     state.fit = false;
+    state.x += destination.x - previous.origin.x - before.x * state.zoom;
+    state.y += destination.y - previous.origin.y - before.y * state.zoom;
     render();
-    const after = snapshot();
-    viewport.scrollLeft +=
-      after.origin.x + before.x * state.zoom - destination.x;
-    viewport.scrollTop +=
-      after.origin.y + before.y * state.zoom - destination.y;
-    onChange();
   };
-  viewport.addEventListener(
-    "scroll",
-    () => {
-      state.scrollLeft = viewport.scrollLeft;
-      state.scrollTop = viewport.scrollTop;
-      onChange();
-    },
-    { passive: true },
-  );
+  const move = (x: number, y: number) => {
+    state.x = x;
+    state.y = y;
+    state.fit = false;
+    render();
+  };
   viewport.addEventListener(
     "wheel",
     (e) => {
@@ -98,13 +100,14 @@ export function createViewport(
     onResize();
     if (state.fit) fit();
     else onChange();
-  }).observe(viewport);
+  }).observe(viewport, { box: "border-box" });
   return {
     state,
     snapshot,
     center,
     fit,
     zoom,
+    move,
     setImage(next: Size) {
       size = next;
       fit();

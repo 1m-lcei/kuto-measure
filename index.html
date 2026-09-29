@@ -78,8 +78,7 @@
       <div class="toolbar">
         <fieldset class="tools">
           <legend class="sr-only">操作モード</legend>
-          <button type="button" data-tool="pan" aria-pressed="true"><span>✥</span>パン</button>
-          <button type="button" data-tool="select" aria-pressed="false"><span>↖</span>選択・編集</button>
+          <button type="button" data-tool="select" aria-pressed="true"><span>↖</span>選択</button>
           <button type="button" data-tool="pin" aria-pressed="false"><span>⊕</span>ピン</button>
           <button type="button" data-tool="reference" aria-pressed="false"><span>◎</span>基準円</button>
           <button type="button" data-tool="measure" aria-pressed="false"><span>↔</span>測距線</button>
@@ -368,16 +367,17 @@
       </ol>
       <h3>操作</h3>
       <p>
-        通常はパンモードです。対象やラベルの上でもドラッグで表示位置を移動し、クリック・タップで対象を選択します。ホイールでズーム。タッチでは1本指で現在のツールを操作し、どのツールでも2本指ドラッグで移動、ピンチで拡大・縮小できます。倍率ボタンも使えます。
+        どのツールでもドラッグで表示位置を移動できます。「選択」ではクリック・タップで対象を選び、選択済みのピンやハンドルをドラッグすると位置や半径を調整できます。ホイールでズーム。タッチでは2本指で移動・ピンチで拡大縮小でき、片指を離した後も残った指で移動を続けられます。倍率ボタンも使えます。
       </p>
-      <p>2本指に切り替えると未確定のドラッグ編集を取り消します。全ての指を離してから、次の編集を始めてください。</p>
+      <p>2本指に切り替えると未確定のドラッグ編集を取り消します。全ての指を離してから、次の選択・配置・編集を始めてください。</p>
       <p>
-        位置や半径の調整は「選択・編集」、配置や描画は各ツールを選びます。ツール使用中もSpace＋ドラッグ／中ボタンドラッグで移動できます。Escapeで操作を取り消してパンに戻ります。
+        配置や描画は各ツールを選び、クリック・タップで指定します。選択済みの対象の上でもSpace＋ドラッグ／中ボタンドラッグなら表示位置を移動できます。Escapeで操作を取り消して「選択」に戻ります。
       </p>
       <p>Deleteで削除。Ctrl／Cmd＋ZでUndo、Ctrl＋YまたはCtrl／Cmd＋Shift＋ZでRedo。編集は100操作まで戻せます。</p>
-      <p>各作成ツールで画像領域をフォーカスし、矢印キー＋Enterで作成。「選択・編集」では選択したピン・ハンドルを矢印キーで1画像px、Shift付きで10px調整します。</p>
+      <p>各作成ツールで画像領域をフォーカスし、矢印キー＋Enterで作成。「選択」では選択したピン・ハンドルを矢印キーで1画像px、Shift付きで10px調整します。</p>
+      <p>「選択」で対象が未選択のときは矢印キーで表示位置を移動します。Shiftを押すと移動量が大きくなります。</p>
       <p>
-        「パン」「選択・編集」では対象の輪郭を強調します。重なるラベルは位置をずらし、クリック・タップ・Enter／Spaceで個別選択できます。ラベルのドラッグでは測定点は動きません。密集時は拡大するかオブジェクト一覧を使ってください。
+        「選択」では対象の輪郭を強調します。重なるラベルは位置をずらし、クリック・タップ・Enter／Spaceで個別選択できます。ラベルのドラッグでは表示位置を移動し、測定点は動きません。密集時は拡大するかオブジェクト一覧を使ってください。
       </p>
       <h3>測定の前提</h3>
       <p>

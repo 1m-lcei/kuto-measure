@@ -539,7 +539,7 @@ try {
       await page.keyboard.press("Escape");
       await expect(page.locator("#viewport")).toHaveAttribute(
         "data-mode",
-        "pan",
+        "select",
       );
       await page
         .getByLabel("画像を開く")
@@ -752,9 +752,14 @@ try {
       const before = await png(page);
       await page.getByRole("button", { name: "拡大", exact: true }).click();
       await page.getByRole("button", { name: "拡大", exact: true }).click();
-      await page
-        .getByRole("application")
-        .evaluate((el) => el.scrollTo(130, 65));
+      const panBox = await page.getByRole("application").boundingBox();
+      assert(panBox);
+      await page.mouse.move(panBox.x + 180, panBox.y + 120);
+      await page.keyboard.down("Space");
+      await page.mouse.down();
+      await page.mouse.move(panBox.x + 50, panBox.y + 55);
+      await page.mouse.up();
+      await page.keyboard.up("Space");
       assert.equal(await measurement.textContent(), baselineDistance);
       const after = await png(page);
       assert(before.equals(after), `${name}: PNG changed with zoom/pan`);
@@ -766,6 +771,10 @@ try {
         const initial = await circlePosition(page, pinKeys[0]);
         const start = await point(page, initial.x, initial.y),
           end = await point(page, initial.x + 80, initial.y + 30);
+        await page.mouse.click(start.x, start.y);
+        await expect(
+          page.locator(`#overlay [data-key="${pinKeys[0]}"]`).first(),
+        ).toHaveAttribute("aria-pressed", "true");
         await page.mouse.move(start.x, start.y);
         await page.mouse.down();
         await page.mouse.move(end.x, end.y, { steps: 4 });
@@ -951,7 +960,7 @@ try {
         await expect(
           page.locator('#overlay [data-key^="pin:"] path.visual'),
         ).toHaveCount(1);
-        await expect(modes.getByRole("button", { name: /パン/ })).toBeEnabled();
+        await expect(modes.getByRole("button", { name: /選択/ })).toBeEnabled();
         await expect(page.locator(".excluded-boundary")).toHaveCount(0);
         await page
           .getByLabel("画像を開く")
