@@ -44,10 +44,68 @@ export async function checkTouch(
     { id: 1, x: center.x - 60 * scale + dx, y: center.y - 30 * scale + dy },
     { id: 2, x: center.x + 60 * scale + dx, y: center.y + 30 * scale + dy },
   ];
+  const span = Math.hypot(120, 60);
+  // Zoom begins after 8 CSS pixels of spacing change, without applying that dead zone.
+  const zoomStartSpan = span + 8;
   const start = async () => {
     await touch("touchStart", pair().slice(0, 1));
     await touch("touchStart", pair());
   };
+
+  // Deliver one finger's PointerEvent a frame late, while TouchEvent has both positions.
+  await start();
+  const panStart = await state();
+  await page.evaluate(() => {
+    const delay = (event: PointerEvent) => {
+      if (event.pointerType !== "touch" || event.isPrimary) return;
+      document.removeEventListener("pointermove", delay, true);
+      event.stopImmediatePropagation();
+      const copy = new PointerEvent(event.type, event);
+      const target = event.target;
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => target?.dispatchEvent(copy)),
+      );
+    };
+    document.addEventListener("pointermove", delay, true);
+  });
+  await touch("touchMove", pair(1, -40, -20));
+  close(
+    (await state()).zoom * 100,
+    panStart.zoom * 100,
+    "staggered finger delivery must not zoom",
+  );
+  await frame();
+  close((await state()).x, panStart.x - 40, "two-finger translation pans x");
+  close((await state()).y, panStart.y - 20, "two-finger translation pans y");
+  await touch("touchMove", pair(1.03, -60, -25));
+  close(
+    (await state()).zoom * 100,
+    panStart.zoom * 100,
+    "small finger-spacing jitter must stay a pan",
+  );
+  close((await state()).x, panStart.x - 60, "jitter does not slow panning x");
+  close((await state()).y, panStart.y - 25, "jitter does not slow panning y");
+  await touch("touchMove", pair((span + 7) / span, -60, -25));
+  close(
+    (await state()).zoom * 100,
+    panStart.zoom * 100,
+    "slow pinch waits for the spacing threshold",
+  );
+  await touch("touchMove", pair((span + 9) / span, -60, -25));
+  const recognized = await state();
+  assert(
+    recognized.zoom > panStart.zoom && recognized.zoom < panStart.zoom * 1.01,
+    "crossing the threshold starts zooming without a jump",
+  );
+  await touch("touchMove", pair(((span + 9) / span) * 1.2, -60, -25));
+  close(
+    (await state()).zoom * 100,
+    recognized.zoom * 120,
+    "recognized pinch follows finger spacing proportionally",
+  );
+  await touch("touchEnd");
+  await page.locator("#fit").click();
+  await page.locator("#actual").click();
 
   // A second finger on the workspace border still makes this a gesture, not a tap.
   await page.locator('[data-tool="pin"]').click();
@@ -73,7 +131,11 @@ export async function checkTouch(
     await start();
     await touch("touchMove", pair(1.5, -20, -15));
     const zoomed = await state();
-    close(zoomed.zoom * 100, before.zoom * 150, `${tool}: pinch zoom`);
+    close(
+      zoomed.zoom * 100,
+      before.zoom * 150 * (span / zoomStartSpan),
+      `${tool}: pinch zoom`,
+    );
     close(
       zoomed.x + ((center.x - before.x) / before.zoom) * zoomed.zoom,
       center.x - 20,
@@ -89,7 +151,11 @@ export async function checkTouch(
     close(panned.x, zoomed.x - 30, `${tool}: two-finger pan x`);
     close(panned.y, zoomed.y - 20, `${tool}: two-finger pan y`);
     await touch("touchMove", pair());
-    close((await state()).zoom * 100, before.zoom * 100, `${tool}: pinch in`);
+    close(
+      (await state()).zoom * 100,
+      zoomed.zoom * (100 / 1.5),
+      `${tool}: pinch in`,
+    );
     // Lifting one finger continues panning, and putting it back resumes the pinch.
     await touch("touchEnd", pair().slice(1));
     const released = await state();
@@ -237,7 +303,7 @@ export async function checkTouch(
   await touch("touchMove", pair(2));
   close(
     (await state()).zoom * 100,
-    fitted.zoom * 200,
+    fitted.zoom * 200 * (span / zoomStartSpan),
     "pinch continues from fit",
   );
   await touch("touchEnd");
@@ -252,7 +318,11 @@ export async function checkTouch(
   const mobileFit = await state();
   await start();
   await touch("touchMove", pair(2));
-  close((await state()).zoom * 100, mobileFit.zoom * 200, "phone-size pinch");
+  close(
+    (await state()).zoom * 100,
+    mobileFit.zoom * 200 * (span / zoomStartSpan),
+    "phone-size pinch",
+  );
   const mobileZoomed = await state();
   close(
     mobileZoomed.y +
@@ -264,11 +334,13 @@ export async function checkTouch(
   await expect(pins).toHaveCount(0);
   // At a zoom limit, reversing the fingers must respond immediately.
   await page.locator("#actual").click();
-  await touch("touchStart", pair(0.05).slice(0, 1));
-  await touch("touchStart", pair(0.05));
-  await touch("touchMove", pair(1));
+  await page.locator("#zoom-in").evaluate((button) => {
+    for (let i = 0; i < 22; i++) (button as HTMLButtonElement).click();
+  });
+  await start();
+  await touch("touchMove", pair(1.5));
   close((await state()).zoom * 100, 1000, "maximum zoom");
-  await touch("touchMove", pair(0.9));
+  await touch("touchMove", pair(1.35));
   close((await state()).zoom * 100, 900, "reverse at maximum zoom");
   await touch("touchEnd");
   await page.locator("#fit").click();

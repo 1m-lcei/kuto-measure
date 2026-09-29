@@ -75,8 +75,12 @@ let selection: Selection | null = null,
   drag: Drag | null = null,
   space = false;
 const touches = new Map<number, ClientPoint>();
+const TOUCH_SLOP = 8;
 let touchNavigation = false;
-let pinch: { distance: number; center: ClientPoint } | null = null;
+let pinch: { distance: number; center: ClientPoint; zooming?: boolean } | null =
+  null;
+const synchronizedTouch = "ontouchstart" in window;
+let touchSample: ReturnType<typeof touchSpan> = null;
 let referenceStart: GroundPoint | null = null,
   measureStart: Endpoint | null = null,
   pendingGuide: CircleCenter | null = null;
@@ -637,8 +641,8 @@ function activate(point: ImagePoint, target: Selection | null) {
         : { kind: "point", point: ground },
     );
 }
-function touchSpan() {
-  const [a, b] = touches.values();
+function touchSpan(points: Iterable<ClientPoint> = touches.values()) {
+  const [a, b] = points;
   return !a
     ? null
     : b
@@ -649,7 +653,7 @@ function touchSpan() {
       : { center: a, distance: 0 };
 }
 function updatePinch() {
-  const span = touchSpan();
+  const span = synchronizedTouch ? touchSample : touchSpan();
   if (!pinch || !span) return;
   if (
     pinch.distance === span.distance &&
@@ -657,13 +661,35 @@ function updatePinch() {
     pinch.center.y === span.center.y
   )
     return;
+  // Ignore spacing jitter during a pan; cross the threshold without a zoom jump.
+  if (!pinch.zooming && Math.abs(span.distance - pinch.distance) > TOUCH_SLOP) {
+    pinch.distance += Math.sign(span.distance - pinch.distance) * TOUCH_SLOP;
+    pinch.zooming = true;
+  }
   const ratio =
-    pinch.distance > 1 && span.distance > 1
+    pinch.zooming && pinch.distance > 1 && span.distance > 1
       ? span.distance / pinch.distance
       : 1;
   view.zoom(view.state.zoom * ratio, pinch.center, span.center);
-  pinch = span;
+  pinch.center = span.center;
+  if (pinch.zooming) pinch.distance = span.distance;
 }
+// TouchEvent provides one coherent snapshot, rather than one update per finger.
+for (const type of ["touchstart", "touchmove", "touchend"] as const)
+  document.addEventListener(
+    type,
+    (event) => {
+      if (!pinch) return;
+      touchSample = touchSpan(
+        Array.from(event.touches)
+          .sort((a, b) => a.identifier - b.identifier)
+          .map((touch) => clientPoint(touch.clientX, touch.clientY)),
+      );
+      if (type === "touchmove") schedule();
+      else pinch = touchSample;
+    },
+    { passive: true },
+  );
 // Track all contacts, including a second finger just outside the image workspace.
 document.addEventListener(
   "pointerdown",
@@ -681,6 +707,7 @@ document.addEventListener(
     ) {
       viewport.setPointerCapture(event.pointerId);
       pinch = touchSpan();
+      touchSample = pinch;
       status("2本指で表示位置を移動・拡大縮小できます。");
     }
   },
@@ -798,7 +825,7 @@ function updateDrag(event: PointerEvent) {
   if (touches.has(event.pointerId)) {
     touches.set(event.pointerId, clientPoint(event.clientX, event.clientY));
     if (pinch) {
-      schedule();
+      if (!synchronizedTouch) schedule();
       return;
     }
   }
@@ -808,7 +835,7 @@ function updateDrag(event: PointerEvent) {
     Math.hypot(
       event.clientX - d.startClient.x,
       event.clientY - d.startClient.y,
-    ) >= (event.pointerType === "touch" ? 8 : 3)
+    ) >= (event.pointerType === "touch" ? TOUCH_SLOP : 3)
   )
     d.moved = true;
   if (d.pan) {
@@ -858,6 +885,7 @@ for (const dialog of document.querySelectorAll("dialog"))
 function finishDrag(cancel: boolean, event?: PointerEvent) {
   if (cancel) {
     pinch = null;
+    touchSample = null;
     touchNavigation = touches.size > 0;
   }
   if (!drag) return;
@@ -884,7 +912,7 @@ document.addEventListener("pointerup", (event) => {
   updateDrag(event);
   updatePinch();
   if (touches.delete(event.pointerId)) {
-    if (pinch) pinch = touchSpan();
+    if (pinch) touchSample = pinch = touchSpan();
     touchNavigation = touchNavigation && touches.size > 0;
   }
   if (event.pointerId !== drag?.pointerId) return;
