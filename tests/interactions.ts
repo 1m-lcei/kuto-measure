@@ -563,6 +563,8 @@ export async function checkInteractions(
   await click(600, 350);
   await expect(pins.last()).toHaveAttribute("aria-pressed", "true");
   await labels.first().locator(".label-hit").click();
+  // Selection redraw replaces the SVG nodes; wait before reading their bounds.
+  await expect(labels.first()).toHaveAttribute("aria-pressed", "true");
   const jitterBox = await labels.nth(2).locator(".label-hit").boundingBox();
   assert(jitterBox);
   const scrollBeforeClick = await scroll();
