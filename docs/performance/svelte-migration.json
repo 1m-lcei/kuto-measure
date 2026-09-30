@@ -1,0 +1,289 @@
+{
+  "date": "2026-09-30",
+  "baselineCommit": "478b681",
+  "environment": "Windows, headless Chromium, device scale 1",
+  "before": {
+    "browser": "153.0.8010.12",
+    "viewport": "1440x1000",
+    "frames": 90,
+    "eventsPerFrame": 8,
+    "results": [
+      {
+        "run": 0,
+        "mode": "pan",
+        "frameP50": 17.400000005960464,
+        "frameP95": 21.400000005960464,
+        "dispatchP95": 0.30000001192092896,
+        "addedNodes": 22680,
+        "panelMutations": 0,
+        "changedFrames": 89,
+        "scriptMs": 1427.5849999999998,
+        "layoutMs": 27.542,
+        "taskMs": 1613.131
+      },
+      {
+        "run": 0,
+        "mode": "zoom",
+        "frameP50": 19.599999994039536,
+        "frameP95": 25.700000017881393,
+        "dispatchP95": 1.699999988079071,
+        "addedNodes": 22680,
+        "panelMutations": 0,
+        "changedFrames": 45,
+        "scriptMs": 1063.8909999999998,
+        "layoutMs": 159.58700000000002,
+        "taskMs": 1411.802
+      },
+      {
+        "run": 0,
+        "mode": "drag",
+        "frameP50": 18.099999994039536,
+        "frameP95": 20.5,
+        "dispatchP95": 1.4000000059604645,
+        "addedNodes": 22770,
+        "panelMutations": 0,
+        "changedFrames": 89,
+        "scriptMs": 1479.1209999999996,
+        "layoutMs": 28.419,
+        "taskMs": 1661.086
+      },
+      {
+        "run": 1,
+        "mode": "pan",
+        "frameP50": 17.400000005960464,
+        "frameP95": 21,
+        "dispatchP95": 0.29999998211860657,
+        "addedNodes": 22680,
+        "panelMutations": 0,
+        "changedFrames": 89,
+        "scriptMs": 1414.321,
+        "layoutMs": 26.9,
+        "taskMs": 1594.733
+      },
+      {
+        "run": 1,
+        "mode": "zoom",
+        "frameP50": 19,
+        "frameP95": 27.100000023841858,
+        "dispatchP95": 1.7999999821186066,
+        "addedNodes": 22680,
+        "panelMutations": 0,
+        "changedFrames": 45,
+        "scriptMs": 1076.3000000000002,
+        "layoutMs": 163.675,
+        "taskMs": 1435.3850000000002
+      },
+      {
+        "run": 1,
+        "mode": "drag",
+        "frameP50": 18.5,
+        "frameP95": 23.400000005960464,
+        "dispatchP95": 1.4000000059604645,
+        "addedNodes": 22770,
+        "panelMutations": 0,
+        "changedFrames": 89,
+        "scriptMs": 1506.4969999999996,
+        "layoutMs": 28.861000000000026,
+        "taskMs": 1704.44
+      },
+      {
+        "run": 2,
+        "mode": "pan",
+        "frameP50": 17.200000017881393,
+        "frameP95": 20.700000017881393,
+        "dispatchP95": 0.29999998211860657,
+        "addedNodes": 22680,
+        "panelMutations": 0,
+        "changedFrames": 89,
+        "scriptMs": 1399.834,
+        "layoutMs": 26.758,
+        "taskMs": 1578.2469999999998
+      },
+      {
+        "run": 2,
+        "mode": "zoom",
+        "frameP50": 19.399999976158142,
+        "frameP95": 27.400000005960464,
+        "dispatchP95": 1.800000011920929,
+        "addedNodes": 22680,
+        "panelMutations": 0,
+        "changedFrames": 45,
+        "scriptMs": 1089.0339999999999,
+        "layoutMs": 162.242,
+        "taskMs": 1439.394
+      },
+      {
+        "run": 2,
+        "mode": "drag",
+        "frameP50": 18.200000017881393,
+        "frameP95": 25,
+        "dispatchP95": 1.399999976158142,
+        "addedNodes": 22770,
+        "panelMutations": 0,
+        "changedFrames": 89,
+        "scriptMs": 1507.0330000000004,
+        "layoutMs": 27.817000000000007,
+        "taskMs": 1692.1660000000002
+      }
+    ],
+    "sizes": [
+      {
+        "file": "index.html",
+        "bytes": 28875,
+        "gzip": 7838
+      },
+      {
+        "file": "assets/index-aHFskdzi.css",
+        "bytes": 16963,
+        "gzip": 4574
+      },
+      {
+        "file": "assets/index-ntBI6L7l.js",
+        "bytes": 66214,
+        "gzip": 23017
+      }
+    ]
+  },
+  "after": {
+    "browser": "153.0.8010.12",
+    "viewport": "1440x1000",
+    "frames": 90,
+    "eventsPerFrame": 8,
+    "results": [
+      {
+        "run": 0,
+        "mode": "pan",
+        "frameP50": 17,
+        "frameP95": 18,
+        "dispatchP95": 0.19999998807907104,
+        "addedNodes": 0,
+        "panelMutations": 0,
+        "changedFrames": 89,
+        "scriptMs": 17.157,
+        "layoutMs": 0,
+        "taskMs": 72.56299999999999
+      },
+      {
+        "run": 0,
+        "mode": "zoom",
+        "frameP50": 16.5,
+        "frameP95": 20.299999982118607,
+        "dispatchP95": 0.19999998807907104,
+        "addedNodes": 0,
+        "panelMutations": 0,
+        "changedFrames": 45,
+        "scriptMs": 496.21,
+        "layoutMs": 39.508,
+        "taskMs": 692.54
+      },
+      {
+        "run": 0,
+        "mode": "drag",
+        "frameP50": 16.700000017881393,
+        "frameP95": 18.400000005960464,
+        "dispatchP95": 0.19999998807907104,
+        "addedNodes": 0,
+        "panelMutations": 0,
+        "changedFrames": 89,
+        "scriptMs": 533.3679999999999,
+        "layoutMs": 13.342,
+        "taskMs": 652.19
+      },
+      {
+        "run": 1,
+        "mode": "pan",
+        "frameP50": 16.900000005960464,
+        "frameP95": 18,
+        "dispatchP95": 0.20000001788139343,
+        "addedNodes": 0,
+        "panelMutations": 0,
+        "changedFrames": 89,
+        "scriptMs": 16.946,
+        "layoutMs": 0,
+        "taskMs": 71.351
+      },
+      {
+        "run": 1,
+        "mode": "zoom",
+        "frameP50": 17.099999994039536,
+        "frameP95": 20.5,
+        "dispatchP95": 0.20000001788139343,
+        "addedNodes": 0,
+        "panelMutations": 0,
+        "changedFrames": 45,
+        "scriptMs": 488.593,
+        "layoutMs": 39.538999999999994,
+        "taskMs": 682.3789999999999
+      },
+      {
+        "run": 1,
+        "mode": "drag",
+        "frameP50": 16.5,
+        "frameP95": 18.599999994039536,
+        "dispatchP95": 0.20000001788139343,
+        "addedNodes": 0,
+        "panelMutations": 0,
+        "changedFrames": 89,
+        "scriptMs": 526.8600000000001,
+        "layoutMs": 12.758,
+        "taskMs": 643.48
+      },
+      {
+        "run": 2,
+        "mode": "pan",
+        "frameP50": 16.900000005960464,
+        "frameP95": 18,
+        "dispatchP95": 0.19999998807907104,
+        "addedNodes": 0,
+        "panelMutations": 0,
+        "changedFrames": 89,
+        "scriptMs": 18.178,
+        "layoutMs": 0,
+        "taskMs": 76.452
+      },
+      {
+        "run": 2,
+        "mode": "zoom",
+        "frameP50": 16.799999982118607,
+        "frameP95": 20.5,
+        "dispatchP95": 0.20000001788139343,
+        "addedNodes": 0,
+        "panelMutations": 0,
+        "changedFrames": 45,
+        "scriptMs": 497.99199999999996,
+        "layoutMs": 39.237,
+        "taskMs": 699.696
+      },
+      {
+        "run": 2,
+        "mode": "drag",
+        "frameP50": 16.799999982118607,
+        "frameP95": 18.19999998807907,
+        "dispatchP95": 0.20000001788139343,
+        "addedNodes": 0,
+        "panelMutations": 0,
+        "changedFrames": 89,
+        "scriptMs": 531.3319999999999,
+        "layoutMs": 12.917000000000005,
+        "taskMs": 647.1879999999999
+      }
+    ],
+    "sizes": [
+      {
+        "file": "index.html",
+        "bytes": 622,
+        "gzip": 425
+      },
+      {
+        "file": "assets/index-aHFskdzi.css",
+        "bytes": 16963,
+        "gzip": 4574
+      },
+      {
+        "file": "assets/index-BI95iw5I.js",
+        "bytes": 141686,
+        "gzip": 51475
+      }
+    ]
+  }
+}

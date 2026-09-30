@@ -24,6 +24,13 @@
   },
   "overrides": [
     {
+      "includes": ["**/*.svelte"],
+      "html": {
+        "formatter": { "enabled": true },
+        "linter": { "enabled": true }
+      }
+    },
+    {
       "includes": ["index.html"],
       "html": {
         "formatter": {

@@ -15,8 +15,7 @@ export interface ViewportState {
   y: number;
 }
 export function createViewport(
-  viewport: HTMLElement,
-  stage: HTMLElement,
+  getViewport: () => HTMLElement,
   onChange: () => void,
   onResize: () => void,
   isEditing: () => boolean,
@@ -28,44 +27,42 @@ export function createViewport(
     y: 24,
   };
   let size: Size | null = null;
+  const display = $state({ ...state });
+  let dimensions = $state.raw({ width: 0, height: 0 });
   const fitScale = () =>
     size
       ? Math.min(
           1,
-          Math.max(1, viewport.clientWidth - 48) / size.width,
-          Math.max(1, viewport.clientHeight - 48) / size.height,
+          Math.max(1, getViewport().clientWidth - 48) / size.width,
+          Math.max(1, getViewport().clientHeight - 48) / size.height,
         )
       : 1;
   const snapshot = (): ViewportSnapshot => {
-    const r = viewport.getBoundingClientRect();
+    const r = getViewport().getBoundingClientRect();
     return {
       origin: clientPoint(
-        r.left + viewport.clientLeft + state.x,
-        r.top + viewport.clientTop + state.y,
+        r.left + getViewport().clientLeft + state.x,
+        r.top + getViewport().clientTop + state.y,
       ),
       zoom: state.zoom,
     };
   };
   const center = (): ClientPoint => {
-    const r = viewport.getBoundingClientRect();
+    const r = getViewport().getBoundingClientRect();
     return clientPoint(
-      r.left + viewport.clientLeft + viewport.clientWidth / 2,
-      r.top + viewport.clientTop + viewport.clientHeight / 2,
+      r.left + getViewport().clientLeft + getViewport().clientWidth / 2,
+      r.top + getViewport().clientTop + getViewport().clientHeight / 2,
     );
   };
-  const render = () => {
-    if (!size) return;
-    stage.style.width = `${size.width * state.zoom}px`;
-    stage.style.height = `${size.height * state.zoom}px`;
-    stage.style.translate = `${state.x}px ${state.y}px`;
-    onChange();
-  };
+  const render = onChange;
+  const flush = () => Object.assign(display, state);
   const fit = () => {
     if (!size) return;
     state.fit = true;
     state.zoom = fitScale();
-    state.x = (viewport.clientWidth - size.width * state.zoom) / 2;
-    state.y = (viewport.clientHeight - size.height * state.zoom) / 2;
+    state.x = (getViewport().clientWidth - size.width * state.zoom) / 2;
+    state.y = (getViewport().clientHeight - size.height * state.zoom) / 2;
+    flush();
     render();
   };
   const zoom = (next: number, anchor = center(), destination = anchor) => {
@@ -84,9 +81,22 @@ export function createViewport(
     state.fit = false;
     render();
   };
-  viewport.addEventListener(
-    "wheel",
-    (e) => {
+  return {
+    state,
+    get display() {
+      return display;
+    },
+    flush,
+    resize() {
+      onResize();
+      dimensions = {
+        width: getViewport().clientWidth,
+        height: getViewport().clientHeight,
+      };
+      if (state.fit) fit();
+      else onChange();
+    },
+    wheel(e: WheelEvent) {
       if (!size || e.ctrlKey || e.metaKey || e.deltaY === 0) return;
       e.preventDefault();
       zoom(
@@ -94,15 +104,6 @@ export function createViewport(
         clientPoint(e.clientX, e.clientY),
       );
     },
-    { passive: false },
-  );
-  new ResizeObserver(() => {
-    onResize();
-    if (state.fit) fit();
-    else onChange();
-  }).observe(viewport, { box: "border-box" });
-  return {
-    state,
     snapshot,
     center,
     fit,
@@ -118,24 +119,12 @@ export function createViewport(
         : imagePoint(0, 0);
     },
     visible() {
-      const r = viewport.getBoundingClientRect(),
-        v = snapshot();
-      const a = clientToImage(
-          clientPoint(r.left + viewport.clientLeft, r.top + viewport.clientTop),
-          v,
-        ),
-        b = clientToImage(
-          clientPoint(
-            r.left + viewport.clientLeft + viewport.clientWidth,
-            r.top + viewport.clientTop + viewport.clientHeight,
-          ),
-          v,
-        );
+      const { x, y, zoom } = display;
       return {
-        left: Math.max(0, a.x),
-        top: Math.max(0, a.y),
-        right: Math.min(size?.width ?? b.x, b.x),
-        bottom: Math.min(size?.height ?? b.y, b.y),
+        left: Math.max(0, -x / zoom),
+        top: Math.max(0, -y / zoom),
+        right: Math.min(size?.width ?? 0, (dimensions.width - x) / zoom),
+        bottom: Math.min(size?.height ?? 0, (dimensions.height - y) / zoom),
       };
     },
   };

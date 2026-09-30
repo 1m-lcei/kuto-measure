@@ -1,6 +1,8 @@
 # 開発・検証・公開
 
-Bun 1.4.2を使用します。ブラウザ実行時の依存ライブラリはありません。
+Bun 1.4.2、Svelte 5、TypeScript、Viteを使用します。SvelteKitは使用しません。
+実行時の追加依存はSvelteだけです。型検査には公式の `svelte-check` を使います。
+現在の `svelte-check` がTypeScript 7単体に対応していないため、対応版のTypeScript 6を使用します。
 
 ```sh
 bun install --frozen-lockfile
@@ -20,7 +22,15 @@ bun run test:browser
 Linuxではブラウザ準備に`--with-deps`を追加してください。
 整形・安全なlint修正は`bun run format`で実行できます。
 
-確認案内やパネルの状態別の固定文言は `index.html` で編集します。状態別の文言は `data-state` で識別し、JavaScriptは `hidden` の切り替えを担当します。色・配置・空一覧の表示はCSS、計算値・入力検証・編集状態はJavaScriptで扱います。
+UIと状態別の文言は `src/*.svelte` で編集します。`index.html` は起動用の最小HTMLです。
+`App.svelte` が編集セッションと操作を管理し、`Panels.svelte`、`Header.svelte`、`Dialog.svelte`、`Annotations.svelte` がパネル・メニュー・ネイティブダイアログ・SVGを描画します。既存の `style.css` は共通で使用します。
+
+履歴と画像は `$state.raw` で保持し、ドメインの不変データを深いProxyへ変換しません。パネルは確定済み文書、SVGはドラッグ中のプレビューを参照します。ポインター移動・ホイール・ピンチの表示更新は `requestAnimationFrame` にまとめ、pointerupでは最終座標を処理して1回だけ履歴へ確定します。
+`viewport.svelte.ts` の倍率と表示位置は個別に追跡します。パン・選択・ホバーで投影やラベル配置を再計算せず、倍率・文書・投影が変わったときだけ必要な計算を実行します。SVGと一覧にはキー付きのSvelteループを使い、要素の全置換とフォーカス復元処理を廃止しています。
+
+計測・画像読み込み・Undo/Redo・JSONの検証と保存形式は従来のTypeScriptモジュールを使います。`annotations.ts` の座標・円・ラベル配置計算を画面とPNGで共有し、`render.ts` の文字列SVGはPNG出力専用です。DOM参照はフォーカス、ネイティブダイアログ、ポインター捕捉、SVGの当たり判定などのブラウザAPIに限定します。
+
+性能計測はビルド後に `bun run test:performance` で実行します。生成画像・24ピン・8測距線を使用し、画像を外部送信しません。測定条件、移行前後の結果と残る制約は [Svelte移行の検証記録](svelte-migration.md) を参照してください。
 
 ## 公開
 

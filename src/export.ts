@@ -18,12 +18,7 @@ export async function exportPng(
   try {
     ctx.drawImage(image.image, 0, 0);
     if (p) {
-      const result = renderAnnotations(doc, p, {
-        zoom: 1,
-        selection: null,
-        interactive: false,
-        measureLabel: canvasLabelMeasure(ctx),
-      });
+      const result = renderAnnotations(doc, p, canvasLabelMeasure(ctx));
       const { markup } = result;
       warnings.push(...result.warnings);
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${image.width}" height="${image.height}" viewBox="0 0 ${image.width} ${image.height}">${markup}</svg>`;

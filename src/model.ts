@@ -532,13 +532,17 @@ export function endpointName(doc: AnalysisDocument, e: Endpoint): string {
       : doc.groups.find((g) => g.id === e.id)?.name) || "名称なし"
   );
 }
+const distanceFormats = [2, 4].map(
+  (digits) =>
+    new Intl.NumberFormat("ja-JP", {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }),
+);
 export const formatDistance = (
   value: number | null,
   doc: AnalysisDocument,
 ): string =>
   value === null
     ? "距離スケール未設定"
-    : new Intl.NumberFormat("ja-JP", {
-        minimumFractionDigits: doc.reference?.radiusGame ? 2 : 4,
-        maximumFractionDigits: doc.reference?.radiusGame ? 2 : 4,
-      }).format(value);
+    : distanceFormats[doc.reference?.radiusGame ? 0 : 1].format(value);

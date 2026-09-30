@@ -6,6 +6,7 @@ import { expect } from "playwright/test";
 import { checkGameArea } from "./game-area";
 import { checkInteractions } from "./interactions";
 import { checkProject } from "./project";
+import { checkReactivity } from "./reactivity";
 import { checkTouch } from "./touch";
 
 // Serve the actual production artifact under a project-site path; no app test hooks.
@@ -1062,6 +1063,13 @@ try {
         } finally {
           await touchContext.close();
         }
+      }
+      const reactivePage = await context.newPage();
+      try {
+        await reactivePage.goto(`http://127.0.0.1:${server.port}/nested/`);
+        await checkReactivity(reactivePage, await imagePayload(reactivePage));
+      } finally {
+        await reactivePage.close();
       }
       assert.deepEqual(errors, []);
       console.log(`${name}: passed`);

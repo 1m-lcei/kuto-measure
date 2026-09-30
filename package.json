@@ -8,17 +8,23 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings && tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
     "test": "bun test tests/core.test.ts tests/image.test.ts",
-    "test:browser": "bun tests/browser.ts"
+    "test:browser": "bun tests/browser.ts",
+    "test:performance": "bun tests/performance.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@types/bun": "1.4.2",
     "playwright": "1.63.0",
-    "typescript": "7.0.2",
+    "svelte-check": "4.7.6",
+    "typescript": "6.0.3",
     "vite": "8.3.1"
+  },
+  "dependencies": {
+    "svelte": "5.57.1"
   }
 }

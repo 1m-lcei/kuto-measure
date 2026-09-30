@@ -558,22 +558,14 @@ test("game area edits preserve anchors, update distances and restore bounds and 
     }),
   ).toThrow();
   expect(JSON.stringify(doc)).toBe(snapshot);
-  const render = (interactive: boolean) =>
-    renderAnnotations(next, after, {
-      zoom: 1,
-      selection: null,
-      interactive,
-      areaPreview: full,
-      measureLabel: (text) => ({
-        width: text.length * 7,
-        ascent: 9,
-        descent: 3,
-      }),
-    }).markup;
-  expect(render(true)).toContain('class="area-preview"');
-  expect(render(false)).not.toContain('class="area-preview"');
-  expect(render(false)).not.toContain('class="excluded-boundary"');
-  expect(render(false)).toContain(`x="12" y="90" width="1500" height="709"`);
+  const svg = renderAnnotations(next, after, (text) => ({
+    width: text.length * 7,
+    ascent: 9,
+    descent: 3,
+  })).markup;
+  expect(svg).not.toContain('class="area-preview"');
+  expect(svg).not.toContain('class="excluded-boundary"');
+  expect(svg).toContain('x="12" y="90" width="1500" height="709"');
 });
 
 test("confirming automatic and fallback areas preserves geometry and participates in history", () => {
@@ -1052,16 +1044,11 @@ describe("analysis and editing", () => {
     expect(scaleFactor(empty)).toBeNull();
     expect(scaleFactor(applyEdit(empty, reorder))).toBe(scaleFactor(reordered));
     expect(
-      renderAnnotations(doc, projection, {
-        zoom: 1,
-        selection: null,
-        interactive: false,
-        measureLabel: (text) => ({
-          width: text.length * 8,
-          ascent: 10,
-          descent: 3,
-        }),
-      }).markup,
+      renderAnnotations(doc, projection, (text) => ({
+        width: text.length * 8,
+        ascent: 10,
+        descent: 3,
+      })).markup,
     ).not.toContain("距離スケール未設定");
   });
   test("scale follows reference values, not pin or guide coordinates", () => {
@@ -1260,16 +1247,11 @@ describe("analysis and editing", () => {
       type: "pin",
       value: { ...doc.pins[0], name: '<script>"&' },
     });
-    const svg = renderAnnotations(doc, projection, {
-      zoom: 1,
-      selection: { kind: "reference" },
-      interactive: false,
-      measureLabel: (text) => ({
-        width: text.length * 8,
-        ascent: 10,
-        descent: 3,
-      }),
-    }).markup;
+    const svg = renderAnnotations(doc, projection, (text) => ({
+      width: text.length * 8,
+      ascent: 10,
+      descent: 3,
+    })).markup;
     expect(svg).toContain("&lt;script&gt;");
     expect(svg).not.toContain("<script>");
     expect(svg).not.toContain("data-handle");

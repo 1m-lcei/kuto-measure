@@ -230,6 +230,8 @@ export function layoutLabels(
           ay <= obstacle.y + obstacle.height;
         if (leader && !ownsAnchor && lineHitsRect(leader, obstacle, 2))
           crossings++;
+        // Remaining penalties are nonnegative: this candidate cannot beat best.
+        if (overlap * 1000 + crossings * 200 + travel >= bestScore) return;
       }
       for (const box of boxes) {
         overlap += overlapArea(candidate, box, 4);
@@ -237,10 +239,12 @@ export function layoutLabels(
         if (box.leader && lineHitsRect(box.leader, candidate, 2)) crossings++;
         if (leader && box.leader && linesOverlap(leader, box.leader))
           crossings++;
+        if (overlap * 1000 + crossings * 200 + travel >= bestScore) return;
       }
       for (const line of strokes) {
         if (lineHitsRect(line, candidate, 3)) crossings += 4;
         if (leader && linesOverlap(leader, line)) crossings++;
+        if (overlap * 1000 + crossings * 200 + travel >= bestScore) return;
       }
       const score = overlap * 1000 + crossings * 200 + travel;
       if (score < bestScore) {
