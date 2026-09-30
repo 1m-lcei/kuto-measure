@@ -351,7 +351,7 @@
   }
   .layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 302px;
+    grid-template-columns: minmax(0, 1fr) 336px;
     gap: 18px;
     align-items: start;
   }
@@ -411,7 +411,7 @@
       padding: 18px 20px;
     }
     .layout {
-      grid-template-columns: minmax(0, 1fr) 270px;
+      grid-template-columns: minmax(0, 1fr) 300px;
     }
     main {
       padding: 20px;
@@ -784,9 +784,35 @@
 }
 @layer panels {
   .inspector-stack {
-    display: grid;
-    gap: 12px;
+    display: flex;
+    flex-direction: column;
     min-width: 0;
+    max-block-size: max(520px, calc(100dvh - 210px));
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    corner-shape: squircle;
+  }
+  .panel-switch {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    padding: 8px;
+  }
+  .panel-switch button {
+    min-block-size: 40px;
+    border-color: transparent;
+    font-size: 13px;
+    font-weight: 650;
+  }
+  .panel-switch button[aria-pressed="true"] {
+    color: var(--accent);
+    background: var(--soft);
+    border-color: var(--border);
+  }
+  .panel-status {
+    padding: 10px 16px;
+    border-block: 1px solid var(--border);
   }
   .checkbox-label {
     display: flex;
@@ -799,17 +825,10 @@
     margin: 0;
   }
   .inspector {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    corner-shape: squircle;
-    max-height: calc(100dvh - 250px);
+    min-block-size: 0;
     overflow: auto;
-  }
-  @media (width < 780px) {
-    .inspector {
-      max-height: none;
-    }
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
   }
   .inspector summary {
     cursor: pointer;
@@ -819,7 +838,7 @@
     border-bottom: 1px solid var(--border);
   }
   .inspector summary span {
-    font-size: 9px;
+    font-size: 11px;
     color: var(--muted);
     font-weight: 400;
     float: right;
@@ -827,8 +846,22 @@
   .inspector-body {
     padding: 16px;
   }
+  .inspector .saved-reference {
+    border-block-start: 1px solid var(--border);
+    margin-block-start: 18px;
+    padding-block-start: 18px;
+  }
   #projection-settings {
-    margin-top: 18px;
+    margin-top: 12px;
+  }
+  .camera-settings,
+  .reference-reset {
+    margin-block-start: 16px;
+  }
+  .inspector .camera-settings > summary,
+  .inspector .reference-reset > summary {
+    padding: 10px 0;
+    border: 0;
   }
   #projection-fields {
     min-inline-size: 0;
@@ -840,7 +873,7 @@
     font-size: 12px;
     font-weight: 650;
   }
-  .inspector section + section {
+  .inspector section:not([hidden]) ~ section {
     border-top: 1px solid var(--border);
     padding-top: 18px;
     margin-top: 18px;
@@ -855,13 +888,13 @@
   .scale-title {
     display: flex;
     align-items: center;
-    margin: 11px 0 8px;
+    margin: 0;
   }
   .scale-title strong {
-    font-size: 14px;
+    font-size: 12px;
   }
   .scale-card p {
-    font-size: 10px;
+    font-size: 12px;
     color: var(--muted);
   }
   .scale-card input {
@@ -876,11 +909,11 @@
     margin-bottom: 12px;
   }
   .section-title h2 {
-    font-size: 11px;
+    font-size: 13px;
   }
   .section-title button {
-    font-size: 10px;
-    min-height: 26px;
+    font-size: 12px;
+    min-height: 32px;
     padding: 4px 7px;
   }
   .section-title h2 span {
@@ -898,6 +931,11 @@
     color: var(--accent);
     overflow-wrap: anywhere;
   }
+  .inspector label,
+  .inspector .muted,
+  .inspector .detail {
+    font-size: 12px;
+  }
   .endpoint-fields {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -910,8 +948,25 @@
     font-size: 11px;
     padding: 7px;
   }
-  #object-list:not(:empty) + #object-empty {
-    display: none;
+  .object-heading {
+    display: flex;
+    justify-content: space-between;
+    margin-block: 14px 4px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 550;
+  }
+  .object-list-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-block-end: 12px;
+  }
+  .object-list-actions #add-group {
+    margin-inline-start: auto;
+  }
+  .object-heading:first-child {
+    margin-block-start: 0;
   }
   .object-row {
     width: 100%;
@@ -945,20 +1000,41 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 11px;
+    font-size: 12px;
   }
   .object-row small {
     display: block;
     color: var(--muted);
-    font-size: 9px;
+    font-size: 11px;
     margin-top: 3px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .object-row .object-type {
-    font-size: 8px;
+    font-size: 10px;
     color: var(--muted);
     white-space: nowrap;
+  }
+  @media (width < 780px) {
+    .inspector-stack {
+      max-block-size: none;
+    }
+    .inspector-stack input:not([type="checkbox"]),
+    .inspector-stack select {
+      font-size: 16px;
+    }
+  }
+  @media (pointer: coarse) {
+    .object-list-actions .icon-button {
+      inline-size: 48px;
+      block-size: 48px;
+    }
+    .inspector-stack button,
+    .inspector-stack summary,
+    .inspector-stack select,
+    .inspector-stack input:not([type="checkbox"]) {
+      min-block-size: 48px;
+    }
   }
 }
 

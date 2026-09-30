@@ -171,6 +171,24 @@ try {
         path: `test-results/${name}-empty-hint.png`,
         fullPage: true,
       });
+      // The two work areas are exclusive, keyboard-operable, and keep the distance mode visible.
+      const editPanel = page.locator("#edit-panel-button");
+      const setupPanel = page.locator("#setup-panel-button");
+      await setupPanel.focus();
+      await page.keyboard.press("Enter");
+      await expect(setupPanel).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator("#analysis-panel")).toBeHidden();
+      await expect(page.locator("#reference-panel")).toBeVisible();
+      await expect(page.locator("#scale-state")).toBeVisible();
+      await page.locator("#camera-settings > summary").click();
+      await expect(page.locator("#projection-settings")).toBeVisible();
+      await page.locator("#camera-settings > summary").click();
+      await editPanel.focus();
+      await page.keyboard.press("Space");
+      await expect(editPanel).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator("#reference-panel")).toBeHidden();
+      await expect(page.locator("#analysis-panel")).toBeVisible();
+      await expect(page.locator("#scale-state")).toBeVisible();
       for (const width of [1440, 780, 779, 390, 320, 1440]) {
         await page.getByRole("button", { name: /テーマ/ }).focus();
         await page.setViewportSize({ width, height: 1000 });
@@ -247,10 +265,8 @@ try {
       await expect(
         page.getByRole("group", { name: "投影パラメータ" }),
       ).toBeHidden();
-      await expect(page.locator("#reference-panel")).toHaveJSProperty(
-        "open",
-        true,
-      );
+      await expect(page.locator("#reference-panel")).toBeHidden();
+      await expect(page.locator("#analysis-panel")).toBeVisible();
       await page.getByRole("button", { name: "メニュー", exact: true }).click();
       await page.getByLabel("高度な設定を表示").check();
       await expect(
@@ -453,9 +469,24 @@ try {
       const relativeRows = page.locator(
         '#object-list [data-object-key^="measurement:"]',
       );
-      const up = page.getByRole("button", { name: "↑ 上へ", exact: true });
-      const down = page.getByRole("button", { name: "↓ 下へ", exact: true });
+      const up = page.getByRole("button", { name: "上へ移動", exact: true });
+      const down = page.getByRole("button", { name: "下へ移動", exact: true });
+      const listActions = page.getByRole("group", { name: "一覧の操作" });
+      await expect(
+        listActions.locator("..").locator("#object-list"),
+      ).toHaveCount(1);
+      await expect(page.locator("#properties #object-order")).toHaveCount(0);
+      const [upBox, downBox] = await Promise.all([
+        up.boundingBox(),
+        down.boundingBox(),
+      ]);
+      assert(upBox && downBox);
+      assert.equal(upBox.y, downBox.y);
+      assert(upBox.x + upBox.width <= downBox.x);
       await expect(relativeRows).toHaveCount(2);
+      await expect(
+        page.locator("#object-list .object-row").first(),
+      ).toHaveAttribute("data-object-key", /^measurement:/);
       const originalKeys = await relativeRows.evaluateAll((rows) =>
         rows.map((row) => row.getAttribute("data-object-key")),
       );
@@ -530,6 +561,8 @@ try {
         '#object-list [data-object-key^="pin:"]',
       );
       await relativePins.nth(1).click();
+      await expect(relativePins.nth(1)).toBeInViewport();
+      await expect(relativePins.nth(1)).toBeFocused();
       await expect(relativeRows).toHaveCount(3);
       await relativePins.nth(2).click();
       await expect(relativeRows).toHaveCount(4);
@@ -554,41 +587,21 @@ try {
       await clickImage(page, 900, 355);
       await page.getByLabel("基準円の半径").fill("500");
       await page.getByLabel("基準円の半径").press("Tab");
-      assert(
-        !(await page
-          .locator("#reference-panel")
-          .evaluate((el) => (el as HTMLDetailsElement).open)),
-      );
-      assert(
-        await page
-          .locator("#analysis-panel")
-          .evaluate((el) => (el as HTMLDetailsElement).open),
-      );
+      assert(!(await page.locator("#reference-panel").isVisible()));
+      assert(await page.locator("#analysis-panel").isVisible());
       await modes.getByRole("button", { name: /基準円/ }).click();
       await expect(page.getByLabel("基準円の半径")).toBeVisible();
-      await page.getByLabel("設定時にパネルを閉じる").uncheck();
+      await page.getByLabel("設定後に測定・編集へ戻る").uncheck();
       await page.getByLabel("基準円の半径").fill("501");
       await page.getByLabel("基準円の半径").press("Enter");
-      assert(
-        await page
-          .locator("#reference-panel")
-          .evaluate((el) => (el as HTMLDetailsElement).open),
-      );
-      await page.getByLabel("設定時にパネルを閉じる").check();
+      assert(await page.locator("#reference-panel").isVisible());
+      await page.getByLabel("設定後に測定・編集へ戻る").check();
       await page.getByLabel("基準円の半径").fill("-1");
       await page.getByLabel("基準円の半径").press("Enter");
-      assert(
-        await page
-          .locator("#reference-panel")
-          .evaluate((el) => (el as HTMLDetailsElement).open),
-      );
+      assert(await page.locator("#reference-panel").isVisible());
       await page.getByLabel("基準円の半径").fill("500");
       await page.getByLabel("基準円の半径").press("Enter");
-      assert(
-        !(await page
-          .locator("#reference-panel")
-          .evaluate((el) => (el as HTMLDetailsElement).open)),
-      );
+      assert(!(await page.locator("#reference-panel").isVisible()));
       await expect(page.locator("#scale-state")).toHaveAttribute(
         "data-state",
         "absolute",
@@ -686,7 +699,7 @@ try {
       await page.keyboard.press("Escape");
       await page.getByRole("button", { name: "元に戻す" }).click();
       assert.equal(await measurement.textContent(), baselineDistance);
-      await page.locator("#reference-panel > summary").click();
+      await page.locator("#edit-panel-button").click();
       await modes.getByRole("button", { name: /補助円/ }).click();
       await clickImage(page, 500, 400);
       await page.mouse.click(4, 4);

@@ -20,12 +20,12 @@ export async function checkReactivity(
   await expect(page.locator("#area-confirmation")).toHaveText("（要確認）");
   await page.locator("#area-confirm").click();
   await expect(page.locator("#area-confirmation")).toHaveText("（確認済み）");
-  await page.locator("#reference-panel > summary").click();
+  await page.locator("#edit-panel-button").click();
   await page.locator("#menu-trigger").click();
   await page.locator("#show-advanced").check();
   await page.keyboard.press("Escape");
-  await expect(page.locator("#reference-panel")).toHaveJSProperty("open", true);
-  await page.locator("#reference-panel > summary").click();
+  await expect(page.locator("#reference-panel")).toBeVisible();
+  await page.locator("#edit-panel-button").click();
   await page.locator('[data-tool="pin"]').click();
   await page.locator("#viewport").focus();
   await page.keyboard.press("Enter");
@@ -175,6 +175,7 @@ export async function checkReactivity(
   await expect(radius).toHaveValue("200");
 
   // Projection drafts survive unrelated edits, then follow applied history.
+  await page.locator("#setup-panel-button").click();
   const pitch = page.locator("#pitch-angle");
   const initialPitch = await pitch.inputValue();
   await pitch.fill("35");

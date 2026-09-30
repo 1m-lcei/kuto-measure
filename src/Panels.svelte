@@ -43,8 +43,9 @@ let {
   saveReference,
   deleteSavedReference,
   resetReference,
-  advanced,
-  referenceOpen = $bindable(true),
+  startTool,
+  advanced = $bindable(false),
+  referenceOpen = $bindable(false),
 }: {
   doc: AnalysisDocument;
   projection: Projection | null;
@@ -63,6 +64,7 @@ let {
   saveReference: () => void;
   deleteSavedReference: () => void;
   resetReference: () => void;
+  startTool: (tool: "pin" | "reference") => void;
   advanced: boolean;
   referenceOpen?: boolean;
 } = $props();
@@ -74,6 +76,13 @@ const needsConfirmation = $derived(
   !!doc.renderArea && !doc.renderArea.confirmed,
 );
 const scale = $derived(scaleFactor(doc));
+const objectCount = $derived(
+  (doc.reference ? 1 : 0) +
+    doc.pins.length +
+    doc.groups.length +
+    doc.measurements.length +
+    doc.guides.length,
+);
 const scaleState = $derived(
   scale
     ? doc.reference?.radiusGame
@@ -181,8 +190,19 @@ let referenceRadius = $derived<number | undefined>(
 let radiusInput: HTMLInputElement,
   nameInput: HTMLInputElement,
   areaForm: HTMLFormElement,
-  referenceSummary: HTMLElement,
+  editPanelButton: HTMLButtonElement,
+  analysisPanel: HTMLElement,
   objectList: HTMLDivElement;
+$effect(() => {
+  if (!referenceOpen && selection) {
+    untrack(() => {
+      const focused = document.activeElement;
+      if (focused instanceof HTMLElement && objectList?.contains(focused))
+        focused.scrollIntoView({ block: "nearest" });
+      else analysisPanel?.scrollTo(0, 0);
+    });
+  }
+});
 const safely = (action: () => void) => {
   try {
     action();
@@ -337,7 +357,7 @@ async function changeRadius(input: HTMLInputElement) {
     ) {
       referenceOpen = false;
       await tick();
-      referenceSummary.focus();
+      editPanelButton.focus();
     }
   } catch (e) {
     error(e);
@@ -390,13 +410,13 @@ function guideDetail(g: AnalysisDocument["guides"][number]) {
           : endpointName(doc, g.center);
 }
 const scaleTitles = {
-  unset: "距離スケール未設定",
-  absolute: "距離スケール設定済み",
+  unset: "相対距離で測定",
+  absolute: "ゲーム内の距離",
   relative: "相対距離",
   invalid: "投影を設定できません",
 };
 const scaleHints = {
-  unset: "基準円をゲーム内の円に合わせ、その半径を入力してください。",
+  unset: "基準円なしでも測定できます。最初の測距線を1として比較します。",
   absolute: "地面上の距離をゲーム内の数値で表示しています。",
   relative: "先頭の測距線を1として、地面上の距離を表示しています。",
   invalid: "キャリブレーションの設定を確認してください。",
@@ -432,7 +452,10 @@ const selectionTitles = {
     class="object-row"
     data-object-key={selectionKey(s)}
     aria-pressed={!!selection && selectionKey(selection) === selectionKey(s)}
-    onclick={() => select(s)}
+    onclick={(event) => {
+  event.currentTarget.focus({ preventScroll: true });
+  select(s);
+}}
   >
     <span class="badge">{symbol}</span
     ><span class="object-label">{title}<small>{detail}</small></span
@@ -440,14 +463,324 @@ const selectionTitles = {
   </button>
 {/snippet}
 
-<aside class="inspector-stack" aria-label="距離設定">
-  <details id="reference-panel" class="inspector" bind:open={referenceOpen}>
-    <summary bind:this={referenceSummary}>
-      基準パネル <span>距離の設定</span>
-    </summary>
+<aside class="inspector-stack" aria-label="測定と画像設定">
+  <div class="panel-switch" role="group" aria-label="パネル表示">
+    <button
+      id="edit-panel-button"
+      type="button"
+      bind:this={editPanelButton}
+      aria-pressed={!referenceOpen}
+      aria-controls="analysis-panel"
+      onclick={() => {
+  referenceOpen = false;
+}}
+    >
+      測定・編集
+    </button>
+    <button
+      id="setup-panel-button"
+      type="button"
+      aria-pressed={referenceOpen}
+      aria-controls="reference-panel"
+      onclick={() => {
+  referenceOpen = true;
+}}
+    >
+      画像・基準
+    </button>
+  </div>
+  <div class="panel-status">
+    <div class="scale-title">
+      <span class="scale-dot"></span>
+      <strong id="scale-state" data-state={scaleState}
+        >{scaleTitles[scaleState]}</strong
+      >
+    </div>
+  </div>
+  <section
+    id="analysis-panel"
+    bind:this={analysisPanel}
+    class="inspector"
+    aria-label="測定・編集"
+    hidden={referenceOpen}
+  >
+    <div class="inspector-body">
+      <section id="properties" aria-label="選択中の対象" hidden={!selection}>
+        <div class="section-title">
+          <h2>選択中の対象</h2>
+          <button
+            id="delete"
+            class="danger"
+            type="button"
+            onclick={() => {
+  if (selection) edit({ type: "delete", target: selection });
+}}
+          >
+            削除
+          </button>
+        </div>
+        <p
+          id="selection-title"
+          class="muted"
+          data-state={selection?.kind ?? "none"}
+        >
+          {selectionTitles[selection?.kind ?? "none"]}
+        </p>
+        <label id="name-row" hidden={!selectedPin && !selectedGroup}>
+          名前
+          <input
+            id="object-name"
+            type="text"
+            bind:this={nameInput}
+            value={selectedPin?.name ?? selectedGroup?.name ?? ""}
+            onchange={(event) => rename(event.currentTarget.value)}
+          >
+        </label>
+        <label id="group-row" hidden={!selectedPin}>
+          所属グループ
+          <select
+            id="pin-group"
+            value={selectedPin?.groupId ?? ""}
+            onchange={(event) => {
+  if (selectedPin)
+    edit({
+      type: "pin",
+      value: { ...selectedPin, groupId: event.currentTarget.value || null },
+    });
+}}
+          >
+            <option value="">未所属</option>
+            {#each doc.groups as group (group.id)}
+              <option value={group.id}>{group.name || "グループ"}</option>
+            {/each}
+          </select>
+        </label>
+        <label id="guide-radius-row" hidden={!selectedGuide}>
+          補助円の半径
+          <input
+            id="guide-radius"
+            type="number"
+            min="0"
+            step="any"
+            bind:value={guideRadius}
+            onchange={(event) =>
+  safely(() => {
+    if (selectedGuide)
+      edit({
+        type: "guide",
+        value: { ...selectedGuide, radiusGame: numeric(event.currentTarget) },
+      });
+  })}
+          >
+        </label>
+        <button
+          type="button"
+          class="wide"
+          hidden={selection?.kind !== "reference"}
+          onclick={() => void focusRadius()}
+        >
+          基準円の半径を編集
+        </button>
+        <p id="object-detail" class="detail">{detail}</p>
+      </section>
+      <section id="measure-panel">
+        <div class="section-title"><h2>対象を指定して測る</h2></div>
+        <p class="muted" hidden={endpoints.length >= 2}>
+          画像上にピンを2つ置くと測定できます。
+        </p>
+        <button
+          type="button"
+          class="wide"
+          hidden={endpoints.length >= 2}
+          disabled={!projection}
+          onclick={() => startTool("pin")}
+        >
+          ＋ ピンを置く
+        </button>
+        <div class="endpoint-fields" hidden={endpoints.length < 2}>
+          <label>
+            始点
+            <select
+              id="measure-from"
+              bind:value={from}
+              disabled={endpoints.length < 2}
+            >
+              <option value="">対象を選択</option>
+              {#each endpoints as endpoint (endpoint.value)}
+                <option value={endpoint.value}>{endpoint.label}</option>
+              {/each}
+            </select>
+          </label>
+          <label>
+            終点
+            <select
+              id="measure-to"
+              bind:value={to}
+              disabled={endpoints.length < 2}
+            >
+              <option value="">対象を選択</option>
+              {#each endpoints as endpoint (endpoint.value)}
+                <option value={endpoint.value}>{endpoint.label}</option>
+              {/each}
+            </select>
+          </label>
+        </div>
+        <button
+          type="button"
+          id="add-measure"
+          class="wide primary"
+          hidden={endpoints.length < 2}
+          disabled={!from || !to || from === to}
+          onclick={addMeasurement}
+        >
+          測距線を追加
+        </button>
+      </section>
+      <section>
+        <div class="section-title">
+          <h2>
+            測定結果・対象
+            <span id="object-count">{objectCount}</span>
+          </h2>
+        </div>
+        <div
+          id="object-order"
+          class="object-list-actions"
+          role="group"
+          aria-label="一覧の操作"
+        >
+          <p id="object-order-hint" class="sr-only">
+            選択中の対象を、同じ種類の中で並び替えます。
+          </p>
+          <button
+            id="object-up"
+            type="button"
+            class="icon-button"
+            aria-label="上へ移動"
+            title="同じ種類の中で上へ移動"
+            aria-describedby="object-order-hint"
+            disabled={position <= 0}
+            onclick={() => void reorder(-1)}
+          >
+            <svg aria-hidden="true">
+              <use href={`${import.meta.env.BASE_URL}icons.svg#arrow-up`} />
+            </svg>
+          </button>
+          <button
+            id="object-down"
+            type="button"
+            class="icon-button"
+            aria-label="下へ移動"
+            title="同じ種類の中で下へ移動"
+            aria-describedby="object-order-hint"
+            disabled={position < 0 || position >= ordered.length - 1}
+            onclick={() => void reorder(1)}
+          >
+            <svg aria-hidden="true">
+              <use href={`${import.meta.env.BASE_URL}icons.svg#arrow-down`} />
+            </svg>
+          </button>
+          <button
+            id="add-group"
+            type="button"
+            disabled={!projection}
+            onclick={() => void addGroup()}
+          >
+            ＋ グループ
+          </button>
+        </div>
+        <div id="object-list" bind:this={objectList}>
+          {#if doc.measurements.length}
+            <h3 class="object-heading">
+              測距線 <span>{doc.measurements.length}</span>
+            </h3>
+          {/if}
+          {#each doc.measurements as m (m.id)}
+            {@render row(
+  { kind: "measurement", id: m.id },
+  endpointName(doc, m.from) + " → " + endpointName(doc, m.to),
+  measurementValue(m),
+  "↔",
+  !doc.reference?.radiusGame && m === doc.measurements[0]
+    ? "測距線 · 基準"
+    : "測距線",
+)}
+          {/each}
+          {#if doc.pins.length}
+            <h3 class="object-heading">ピン <span>{doc.pins.length}</span></h3>
+          {/if}
+          {#each doc.pins as pin (pin.id)}
+            {@render row(
+  { kind: "pin", id: pin.id },
+  pin.name || "ピン",
+  (doc.groups.find((g) => g.id === pin.groupId)?.name ?? "未所属") ||
+    "グループ",
+  "•",
+  "ピン",
+)}
+          {/each}
+          {#if doc.groups.length}
+            <h3 class="object-heading">
+              グループ <span>{doc.groups.length}</span>
+            </h3>
+          {/if}
+          {#each doc.groups as group (group.id)}
+            {@render row(
+  { kind: "group", id: group.id },
+  group.name || "グループ",
+  centroid(doc, group.id)
+    ? doc.pins.filter((p) => p.groupId === group.id).length + " 個のピン"
+    : "グループが空",
+  "◇",
+  "グループ",
+)}
+          {/each}
+          {#if doc.guides.length}
+            <h3 class="object-heading">
+              補助円 <span>{doc.guides.length}</span>
+            </h3>
+          {/if}
+          {#each doc.guides as guide (guide.id)}
+            {@render row(
+  { kind: "guide", id: guide.id },
+  "半径 " + formatDistance(guide.radiusGame, doc),
+  guideDetail(guide),
+  "◌",
+  "補助円",
+)}
+          {/each}
+          {#if doc.reference}
+            {@render row(
+  { kind: "reference" },
+  "基準円",
+  doc.reference.radiusGame
+    ? "半径 " + formatDistance(doc.reference.radiusGame, doc)
+    : "半径を入力してください",
+  "◎",
+  "基準",
+)}
+          {/if}
+        </div>
+        <p id="object-empty" class="muted" hidden={objectCount > 0}>
+          ピン・円・測距線がここに並びます。
+        </p>
+      </section>
+    </div>
+  </section>
+  <section
+    id="reference-panel"
+    class="inspector"
+    aria-label="画像・基準"
+    hidden={!referenceOpen}
+  >
     <div class="inspector-body">
       <details id="game-area" class="game-area" bind:open={areaOpen}>
-        <summary>ゲーム領域</summary>
+        <summary>
+          ゲーム領域
+          <span
+            >{needsConfirmation ? "要確認" : hasImage ? "確認済み" : "画像未選択"}</span
+          >
+        </summary>
         <p
           id="area-state"
           data-source={areaSource ?? ""}
@@ -561,15 +894,20 @@ const selectionTitles = {
         </p>
       </details>
       <section class="scale-card">
-        <span class="eyebrow">距離スケール</span>
-        <div class="scale-title">
-          <span class="scale-dot"></span>
-          <strong id="scale-state" data-state={scaleState}
-            >{scaleTitles[scaleState]}</strong
-          >
-        </div>
+        <h2>距離の基準（任意）</h2>
         <p id="scale-hint" data-state={scaleState}>
           {scaleHints[scaleState]}
+        </p>
+        <button
+          type="button"
+          class="wide"
+          disabled={!projection}
+          onclick={() => startTool("reference")}
+        >
+          ◎ 基準円を合わせる
+        </button>
+        <p class="muted">
+          ゲーム内の距離を知りたい場合は、円を合わせて半径を入力します。
         </p>
         <label>
           基準円の半径
@@ -597,9 +935,129 @@ const selectionTitles = {
             type="checkbox"
             bind:checked={closeReference}
           >
-          設定時にパネルを閉じる
+          設定後に測定・編集へ戻る
         </label>
       </section>
+      <details class="reference-reset">
+        <summary>この画像の基準をリセット</summary>
+        <button
+          id="reset-reference"
+          type="button"
+          class="wide"
+          aria-describedby="reset-reference-hint"
+          disabled={!hasImage ||
+  loading ||
+  (!doc.reference && sameCalibration(doc.calibration, DEFAULT_CALIBRATION))}
+          onclick={resetReference}
+        >
+          この画像の基準をリセット
+        </button>
+        <p id="reset-reference-hint" class="muted">
+          基準円とカメラ設定を初期化します。ピンの画像上の位置と保存した基準は保持します。
+        </p>
+      </details>
+      <details
+        id="camera-settings"
+        class="camera-settings"
+        bind:open={advanced}
+      >
+        <summary>カメラの詳細設定</summary>
+        <form
+          id="projection-settings"
+          hidden={!advanced}
+          onsubmit={submitProjection}
+        >
+          <fieldset id="projection-fields" disabled={!projection}>
+            <legend>投影パラメータ</legend>
+            <label>
+              ピッチ角（°）
+              <input
+                id="pitch-angle"
+                name="pitch"
+                type="number"
+                min="0"
+                max="90"
+                step="any"
+                required
+                aria-describedby="pitch-hint"
+                bind:value={pitch}
+              >
+            </label>
+            <p id="pitch-hint" class="muted">
+              水平から下向き。0°より大きく90°以下。
+            </p>
+            <label>
+              垂直画角（°）
+              <input
+                id="vertical-fov"
+                name="fov"
+                type="number"
+                min="0"
+                max="180"
+                step="any"
+                required
+                aria-describedby="fov-hint"
+                bind:value={fov}
+              >
+            </label>
+            <p id="fov-hint" class="muted">
+              描画領域の高さに対応。0°より大きく180°未満。
+            </p>
+            <label>
+              ロール角（°）
+              <input
+                id="roll-angle"
+                name="roll"
+                type="number"
+                step="any"
+                required
+                aria-describedby="roll-hint"
+                bind:value={roll}
+              >
+            </label>
+            <p id="roll-hint" class="muted">
+              正の値で消失線が右下がりになります。
+            </p>
+            <div class="endpoint-fields">
+              <label>
+                主点 X
+                <input
+                  id="principal-x"
+                  name="principal-x"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="any"
+                  required
+                  aria-describedby="principal-hint"
+                  bind:value={principalX}
+                >
+              </label>
+              <label>
+                主点 Y
+                <input
+                  id="principal-y"
+                  name="principal-y"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="any"
+                  required
+                  aria-describedby="principal-hint"
+                  bind:value={principalY}
+                >
+              </label>
+            </div>
+            <p id="principal-hint" class="muted">
+              描画領域内の比率（0〜1）。左上が (0, 0)、中央が (0.5, 0.5)。
+            </p>
+            <p class="muted">
+              適用後もピンの画像上の位置を保ちます。基準円の形が変わるため、必要に応じて合わせ直してください。
+            </p>
+            <button type="submit" class="wide">投影設定を適用</button>
+          </fieldset>
+        </form>
+      </details>
       <section class="saved-reference" aria-labelledby="saved-reference-title">
         <h2 id="saved-reference-title">ブラウザに保存した基準</h2>
         <p id="saved-reference-state" role="status" data-state={savedState}>
@@ -609,7 +1067,7 @@ const selectionTitles = {
           {presetError}
         </p>
         <details id="saved-reference-options">
-          <summary>保存・リセットの操作</summary>
+          <summary>保存・削除の操作</summary>
           <p id="saved-reference-detail" class="muted">
             {savedPreset
   ? `保存したゲーム内半径：${savedPreset.reference.radiusGame}（カメラ設定を含む）`
@@ -649,330 +1107,8 @@ const selectionTitles = {
           <p class="muted">
             このブラウザ・配信元だけに保存され、サイトデータの削除等で失われます。
           </p>
-          <button
-            id="reset-reference"
-            type="button"
-            class="wide"
-            aria-describedby="reset-reference-hint"
-            disabled={!hasImage ||
-  loading ||
-  (!doc.reference && sameCalibration(doc.calibration, DEFAULT_CALIBRATION))}
-            onclick={resetReference}
-          >
-            この画像の基準をリセット
-          </button>
-          <p id="reset-reference-hint" class="muted">
-            基準円とカメラ設定を初期化します。ピンの画像上の位置と保存した基準は保持します。
-          </p>
         </details>
       </section>
-      <form
-        id="projection-settings"
-        hidden={!advanced}
-        onsubmit={submitProjection}
-      >
-        <fieldset id="projection-fields" disabled={!projection}>
-          <legend>投影パラメータ</legend>
-          <label>
-            ピッチ角（°）
-            <input
-              id="pitch-angle"
-              name="pitch"
-              type="number"
-              min="0"
-              max="90"
-              step="any"
-              required
-              aria-describedby="pitch-hint"
-              bind:value={pitch}
-            >
-          </label>
-          <p id="pitch-hint" class="muted">
-            水平から下向き。0°より大きく90°以下。
-          </p>
-          <label>
-            垂直画角（°）
-            <input
-              id="vertical-fov"
-              name="fov"
-              type="number"
-              min="0"
-              max="180"
-              step="any"
-              required
-              aria-describedby="fov-hint"
-              bind:value={fov}
-            >
-          </label>
-          <p id="fov-hint" class="muted">
-            描画領域の高さに対応。0°より大きく180°未満。
-          </p>
-          <label>
-            ロール角（°）
-            <input
-              id="roll-angle"
-              name="roll"
-              type="number"
-              step="any"
-              required
-              aria-describedby="roll-hint"
-              bind:value={roll}
-            >
-          </label>
-          <p id="roll-hint" class="muted">
-            正の値で消失線が右下がりになります。
-          </p>
-          <div class="endpoint-fields">
-            <label>
-              主点 X
-              <input
-                id="principal-x"
-                name="principal-x"
-                type="number"
-                min="0"
-                max="1"
-                step="any"
-                required
-                aria-describedby="principal-hint"
-                bind:value={principalX}
-              >
-            </label>
-            <label>
-              主点 Y
-              <input
-                id="principal-y"
-                name="principal-y"
-                type="number"
-                min="0"
-                max="1"
-                step="any"
-                required
-                aria-describedby="principal-hint"
-                bind:value={principalY}
-              >
-            </label>
-          </div>
-          <p id="principal-hint" class="muted">
-            描画領域内の比率（0〜1）。左上が (0, 0)、中央が (0.5, 0.5)。
-          </p>
-          <p class="muted">
-            適用後もピンの画像上の位置を保ちます。基準円の形が変わるため、必要に応じて合わせ直してください。
-          </p>
-          <button type="submit" class="wide">投影設定を適用</button>
-        </fieldset>
-      </form>
     </div>
-  </details>
-  <details id="analysis-panel" class="inspector" open>
-    <summary>編集パネル <span>設定・オブジェクト</span></summary>
-    <div class="inspector-body">
-      <section id="properties">
-        <div class="section-title">
-          <h2>選択中の対象</h2>
-          <button
-            id="delete"
-            class="danger"
-            type="button"
-            disabled={!selection}
-            onclick={() => {
-  if (selection) edit({ type: "delete", target: selection });
-}}
-          >
-            削除
-          </button>
-        </div>
-        <p
-          id="selection-title"
-          class="muted"
-          data-state={selection?.kind ?? "none"}
-        >
-          {selectionTitles[selection?.kind ?? "none"]}
-        </p>
-        <label id="name-row" hidden={!selectedPin && !selectedGroup}>
-          名前
-          <input
-            id="object-name"
-            type="text"
-            bind:this={nameInput}
-            value={selectedPin?.name ?? selectedGroup?.name ?? ""}
-            onchange={(event) => rename(event.currentTarget.value)}
-          >
-        </label>
-        <label id="group-row" hidden={!selectedPin}>
-          所属グループ
-          <select
-            id="pin-group"
-            value={selectedPin?.groupId ?? ""}
-            onchange={(event) => {
-  if (selectedPin)
-    edit({
-      type: "pin",
-      value: { ...selectedPin, groupId: event.currentTarget.value || null },
-    });
-}}
-          >
-            <option value="">未所属</option>
-            {#each doc.groups as group (group.id)}
-              <option value={group.id}>{group.name || "グループ"}</option>
-            {/each}
-          </select>
-        </label>
-        <label id="guide-radius-row" hidden={!selectedGuide}>
-          補助円の半径
-          <input
-            id="guide-radius"
-            type="number"
-            min="0"
-            step="any"
-            bind:value={guideRadius}
-            onchange={(event) =>
-  safely(() => {
-    if (selectedGuide)
-      edit({
-        type: "guide",
-        value: { ...selectedGuide, radiusGame: numeric(event.currentTarget) },
-      });
-  })}
-          >
-        </label>
-        <p id="object-detail" class="detail">{detail}</p>
-        <div id="object-order" hidden={!ordered.length}>
-          <p id="object-order-hint" class="muted">
-            同じ種類の中で並び替えます。
-          </p>
-          <div class="endpoint-fields">
-            <button
-              id="object-up"
-              type="button"
-              aria-describedby="object-order-hint"
-              disabled={position <= 0}
-              onclick={() => void reorder(-1)}
-            >
-              ↑ 上へ
-            </button>
-            <button
-              id="object-down"
-              type="button"
-              aria-describedby="object-order-hint"
-              disabled={position < 0 || position >= ordered.length - 1}
-              onclick={() => void reorder(1)}
-            >
-              ↓ 下へ
-            </button>
-          </div>
-        </div>
-      </section>
-      <section id="measure-panel">
-        <div class="section-title"><h2>対象を指定して測る</h2></div>
-        <div class="endpoint-fields">
-          <label>
-            始点
-            <select id="measure-from" bind:value={from}>
-              <option value="">対象を選択</option>
-              {#each endpoints as endpoint (endpoint.value)}
-                <option value={endpoint.value}>{endpoint.label}</option>
-              {/each}
-            </select>
-          </label>
-          <label>
-            終点
-            <select id="measure-to" bind:value={to}>
-              <option value="">対象を選択</option>
-              {#each endpoints as endpoint (endpoint.value)}
-                <option value={endpoint.value}>{endpoint.label}</option>
-              {/each}
-            </select>
-          </label>
-        </div>
-        <button
-          type="button"
-          id="add-measure"
-          class="wide"
-          disabled={!from || !to || from === to}
-          onclick={addMeasurement}
-        >
-          測距線を追加
-        </button>
-      </section>
-      <section>
-        <div class="section-title">
-          <h2>
-            オブジェクト
-            <span id="object-count"
-              >{(doc.reference ? 1 : 0) +
-  doc.pins.length +
-  doc.groups.length +
-  doc.measurements.length +
-  doc.guides.length}</span
-            >
-          </h2>
-          <button
-            id="add-group"
-            type="button"
-            disabled={!projection}
-            onclick={() => void addGroup()}
-          >
-            ＋ グループ
-          </button>
-        </div>
-        <div id="object-list" bind:this={objectList}>
-          {#if doc.reference}
-            {@render row(
-  { kind: "reference" },
-  "基準円",
-  doc.reference.radiusGame
-    ? "半径 " + formatDistance(doc.reference.radiusGame, doc)
-    : "半径を入力してください",
-  "◎",
-  "基準",
-)}
-          {/if}
-          {#each doc.pins as pin (pin.id)}
-            {@render row(
-  { kind: "pin", id: pin.id },
-  pin.name || "ピン",
-  (doc.groups.find((g) => g.id === pin.groupId)?.name ?? "未所属") ||
-    "グループ",
-  "•",
-  "ピン",
-)}
-          {/each}
-          {#each doc.groups as group (group.id)}
-            {@render row(
-  { kind: "group", id: group.id },
-  group.name || "グループ",
-  centroid(doc, group.id)
-    ? doc.pins.filter((p) => p.groupId === group.id).length + " 個のピン"
-    : "グループが空",
-  "◇",
-  "グループ",
-)}
-          {/each}
-          {#each doc.measurements as m (m.id)}
-            {@render row(
-  { kind: "measurement", id: m.id },
-  endpointName(doc, m.from) + " → " + endpointName(doc, m.to),
-  measurementValue(m),
-  "↔",
-  !doc.reference?.radiusGame && m === doc.measurements[0]
-    ? "測距線 · 基準"
-    : "測距線",
-)}
-          {/each}
-          {#each doc.guides as guide (guide.id)}
-            {@render row(
-  { kind: "guide", id: guide.id },
-  "半径 " + formatDistance(guide.radiusGame, doc),
-  guideDetail(guide),
-  "◌",
-  "補助円",
-)}
-          {/each}
-        </div>
-        <p id="object-empty" class="muted">
-          ピン・円・測距線がここに並びます。
-        </p>
-      </section>
-    </div>
-  </details>
+  </section>
 </aside>

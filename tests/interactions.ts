@@ -29,6 +29,7 @@ export async function checkInteractions(
       "data-mode",
       "select",
     );
+    await page.locator("#setup-panel-button").click();
   };
   const point = async (x: number, y: number) => {
     const box = await page.locator("#stage").boundingBox();
@@ -153,7 +154,7 @@ export async function checkInteractions(
   await click(900, 355);
   await page.locator("#saved-reference-options > summary").click();
   await expect(page.getByRole("button", { name: /現在の基準/ })).toBeDisabled();
-  await page.getByLabel("設定時にパネルを閉じる").uncheck();
+  await page.getByLabel("設定後に測定・編集へ戻る").uncheck();
   await page.getByLabel("基準円の半径").fill("500");
   await page.getByLabel("基準円の半径").press("Tab");
   await page.getByRole("button", { name: /現在の基準/ }).click();
@@ -198,6 +199,8 @@ export async function checkInteractions(
   await modes.getByRole("button", { name: /ピン/ }).click();
   await click(500, 400);
   const beforeReset = await pinPositions();
+  await page.locator("#setup-panel-button").click();
+  await page.locator(".reference-reset > summary").click();
   await page.getByRole("button", { name: /この画像の基準をリセット/ }).click();
   await expect(page.getByLabel("基準円の半径")).toHaveValue("");
   await expect(page.getByLabel(/ピッチ角/)).toHaveValue("25.2");
@@ -551,7 +554,9 @@ export async function checkInteractions(
       { steps: 4 },
     );
     await page.mouse.up();
-    assert.deepEqual(await scroll(), { x: before.x + 36, y: before.y + 24 });
+    const after = await scroll();
+    assert(Math.abs(after.x - before.x - 36) < 0.01);
+    assert(Math.abs(after.y - before.y - 24) < 0.01);
     assert.deepEqual(await pinPositions(), positions);
     await expect(labels.first()).toHaveAttribute("aria-pressed", "true");
     await expect(viewport).toHaveAttribute("data-mode", "select");

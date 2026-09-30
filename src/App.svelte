@@ -137,7 +137,7 @@ let viewport: HTMLDivElement,
   overlay: SVGSVGElement,
   panels: Panels,
   header: Header;
-let referenceOpen = $state(true),
+let referenceOpen = $state(false),
   advanced = $state(false);
 let guideOpen = $state(false),
   guideRadius = $state<number | undefined>(0),
@@ -342,7 +342,7 @@ function selectObject(next: Selection) {
     return;
   }
   selection = next;
-  if (next.kind === "reference") referenceOpen = true;
+  referenceOpen = false;
   cursor = null;
 }
 function editDocument(edit: Edit) {
@@ -397,7 +397,7 @@ function setTool(next: Tool) {
   measureStart = null;
   pendingGuide = null;
   cursor = null;
-  if (next === "reference") referenceOpen = true;
+  referenceOpen = next === "reference";
   if (next === "reference" && history.present.reference) {
     tool = "select";
     selection = { kind: "reference" };
@@ -450,6 +450,7 @@ function activate(point: ImagePoint, target: Selection | null) {
   const ground = groundAt(point);
   if (tool === "select") {
     selection = target;
+    if (target) referenceOpen = false;
     return;
   }
   if (tool === "measure") {
@@ -1365,7 +1366,7 @@ onMount(() => {
             <span class="file-types">PNG · JPEG · WEBP</span>
             <div class="privacy"><span></span>ブラウザ内だけで処理</div>
             <div class="empty-steps">
-              <span><b>01</b> 基準円を合わせる</span>
+              <span><b>01</b> 画像を確認する</span>
               <span><b>02</b> ピンを置く</span>
               <span><b>03</b> 距離を測る</span>
             </div>
@@ -1555,7 +1556,11 @@ onMount(() => {
       {saveReference}
       {deleteSavedReference}
       {resetReference}
-      {advanced}
+      startTool={(next) => {
+  setTool(next);
+  viewport.focus({ preventScroll: true });
+}}
+      bind:advanced
       bind:referenceOpen
     />
   </div>

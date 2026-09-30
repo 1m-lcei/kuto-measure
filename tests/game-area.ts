@@ -75,7 +75,7 @@ export async function checkGameArea(
     return bytes;
   };
 
-  await page.locator("#reference-panel > summary").click();
+  await page.locator("#edit-panel-button").click();
   await modes.getByRole("button", { name: /ピン/ }).click();
   await expect(page.locator("#area-warning")).toBeVisible();
   assert(
@@ -142,11 +142,7 @@ export async function checkGameArea(
     "Acknowledging an area alone must not prompt to discard edits",
   );
   await page.getByRole("button", { name: "ゲーム領域を設定" }).click();
-  assert(
-    await page
-      .locator("#reference-panel")
-      .evaluate((node: HTMLDetailsElement) => node.open),
-  );
+  assert(await page.locator("#reference-panel").isVisible());
   assert(
     await page
       .locator("#game-area")
@@ -202,7 +198,7 @@ export async function checkGameArea(
   await inputs[0].press("Escape");
   await expect(inputs[0]).toHaveValue("0");
   await inputs[0].fill("40");
-  await page.locator("#reference-panel > summary").click();
+  await page.locator("#edit-panel-button").click();
   await page.locator(".area-preview").waitFor({ state: "detached" });
   await page.getByRole("button", { name: "ゲーム領域を設定" }).click();
   await page.getByRole("button", { name: "画面全体を適用" }).click();
@@ -227,7 +223,7 @@ export async function checkGameArea(
   await modes.getByRole("button", { name: /基準円/ }).click();
   await clickImage(740, 400);
   await clickImage(800, 400);
-  await page.getByLabel("設定時にパネルを閉じる").uncheck();
+  await page.getByLabel("設定後に測定・編集へ戻る").uncheck();
   await page.getByLabel("基準円の半径").fill("500");
   await page.getByLabel("基準円の半径").press("Tab");
   const positions = await pinPositions();
@@ -297,6 +293,7 @@ export async function checkGameArea(
     localStorage.getItem("kuto-measure.reference-preset"),
   );
   assert(saved && !Object.hasOwn(JSON.parse(saved), "renderArea"));
+  await page.locator(".reference-reset > summary").click();
   await page.getByRole("button", { name: /この画像の基準をリセット/ }).click();
   assert.equal(await state.getAttribute("data-source"), "manual");
   assert.deepEqual(await clip(), [20, 60, 1486, 559]);
