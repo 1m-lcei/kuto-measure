@@ -348,6 +348,47 @@ export async function checkTouch(
     path: "test-results/chromium-touch.png",
     fullPage: true,
   });
+
+  // Mobile panels participate in page scrolling, even with no internal overflow.
+  await page.setViewportSize({ width: 390, height: 640 });
+  for (const [button, panel] of [
+    ["edit-panel-button", "analysis-panel"],
+    ["setup-panel-button", "reference-panel"],
+  ]) {
+    await page.locator(`#${button}`).click();
+    for (const direction of [1, -1]) {
+      await page.locator(`#${panel}`).evaluate((el) => {
+        el.scrollIntoView({ block: "start" });
+        window.scrollBy(0, -120);
+      });
+      const before = await page.evaluate(() => ({
+        y: scrollY,
+        remaining:
+          document.documentElement.scrollHeight - innerHeight - scrollY,
+      }));
+      assert(before.y > 100 && before.remaining > 100);
+      const panelBox = await page.locator(`#${panel}`).boundingBox();
+      assert(panelBox);
+      const finger = {
+        id: 1,
+        x: panelBox.x + 12,
+        y: Math.max(0, panelBox.y) + 60,
+      };
+      await touch("touchStart", [finger]);
+      for (let step = 1; step <= 6; step++)
+        await touch("touchMove", [
+          { ...finger, y: finger.y - direction * step * 15 },
+        ]);
+      await expect
+        .poll(
+          async () =>
+            ((await page.evaluate(() => scrollY)) - before.y) * direction,
+          { message: `${panel}: swiping scrolls the page in either direction` },
+        )
+        .toBeGreaterThan(25);
+      await touch("touchEnd");
+    }
+  }
   assert.deepEqual(errors, []);
   await session.detach();
 }
