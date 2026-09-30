@@ -46,6 +46,7 @@ let {
   startTool,
   advanced = $bindable(false),
   referenceOpen = $bindable(false),
+  dragArea = $bindable(false),
 }: {
   doc: AnalysisDocument;
   projection: Projection | null;
@@ -67,6 +68,7 @@ let {
   startTool: (tool: "pin" | "reference") => void;
   advanced: boolean;
   referenceOpen?: boolean;
+  dragArea?: boolean;
 } = $props();
 const calibration = $derived(doc.calibration);
 const area = $derived(doc.renderArea?.bounds ?? projection?.renderArea);
@@ -173,6 +175,7 @@ $effect(() => {
     to = endpoints[1]?.value ?? "";
 });
 let areaOpen = $state(false),
+  areaDragEnabled = $state(false),
   closeReference = $state(true);
 let areaValues = $state<(number | undefined)[]>([0, 0, 0, 0]);
 let areaDirty = $state(false),
@@ -223,6 +226,10 @@ $effect(() => {
   if (!referenceOpen || !areaOpen) untrack(cancelArea);
 });
 $effect(() => {
+  dragArea =
+    referenceOpen && areaOpen && areaDragEnabled && !!projection && !loading;
+});
+$effect(() => {
   const values = areaValues.slice(),
     dirty = areaDirty;
   let bounds: ImageRect | null = null;
@@ -236,22 +243,26 @@ $effect(() => {
   untrack(() => previewArea(bounds));
 });
 export function cancelArea() {
-  if (area && size)
+  setArea(area ?? null);
+  areaDirty = false;
+}
+export function setArea(bounds: ImageRect | null) {
+  if (bounds && size)
     areaValues = [
-      area.y,
-      size.height - area.y - area.height,
-      area.x,
-      size.width - area.x - area.width,
+      bounds.y,
+      size.height - bounds.y - bounds.height,
+      bounds.x,
+      size.width - bounds.x - bounds.width,
     ];
   areaError = "";
   invalidSides = [];
-  areaDirty = false;
+  areaDirty = true;
 }
 export async function openArea() {
   referenceOpen = true;
   areaOpen = true;
   await tick();
-  areaForm.querySelector("input")?.focus();
+  areaForm.querySelector<HTMLInputElement>('input[type="number"]')?.focus();
 }
 export async function focusRadius() {
   referenceOpen = true;
@@ -290,7 +301,9 @@ function submitArea(event: SubmitEvent) {
         ? 1
         : 3;
     invalidSides = [invalidSide];
-    areaForm.querySelectorAll("input")[invalidSide].focus();
+    areaForm
+      .querySelectorAll<HTMLInputElement>('input[type="number"]')
+      [invalidSide].focus();
     return;
   }
   if (
@@ -822,6 +835,18 @@ const selectionTitles = {
         >
           <fieldset id="area-fields" disabled={!projection}>
             <legend class="sr-only">上下左右の除外幅</legend>
+            <label class="checkbox-label" for="area-drag">
+              <input
+                id="area-drag"
+                type="checkbox"
+                bind:checked={areaDragEnabled}
+                aria-describedby="area-drag-hint"
+              >
+              バーをドラッグして調整
+            </label>
+            <p id="area-drag-hint" class="muted" hidden={!areaDragEnabled}>
+              画像上の上下左右のバーを動かし、「適用」で確定します。バーにフォーカスして矢印キーで1px、Shift併用で10px調整できます。
+            </p>
             <div class="endpoint-fields">
               {#each [
    { name: "top", label: "上" },

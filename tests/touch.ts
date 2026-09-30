@@ -389,6 +389,66 @@ export async function checkTouch(
       await touch("touchEnd");
     }
   }
+  // Area bars use the same capture/cancellation path as annotation drags.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator("#fit").click();
+  await page.getByRole("button", { name: "ゲーム領域を設定" }).click();
+  await page.getByRole("checkbox", { name: "バーをドラッグして調整" }).check();
+  await page.locator("#viewport").scrollIntoViewIfNeeded();
+  const areaTop = page.locator("#area-top");
+  for (const ending of ["release", "cancel", "capture", "second-finger"]) {
+    const bar = await page
+      .locator('.area-handle[data-area-side="0"] .visual')
+      .boundingBox();
+    assert(bar);
+    const before = await state();
+    const finger = {
+      id: 1,
+      x: bar.x + bar.width / 2,
+      y: bar.y + bar.height / 2,
+    };
+    const moved = { ...finger, y: finger.y + 80 * before.zoom };
+    await touch("touchStart", [finger]);
+    await touch("touchMove", [moved]);
+    await expect(areaTop).toHaveValue("80");
+    assert.deepEqual(
+      await state(),
+      before,
+      "dragging an area bar must not pan",
+    );
+    if (ending === "release") {
+      await touch("touchEnd");
+      await expect(areaTop).toHaveValue("80");
+      await page.screenshot({
+        path: "test-results/chromium-game-area-touch.png",
+        fullPage: true,
+      });
+      await page.locator("#area-cancel").click();
+    } else if (ending === "cancel") await touch("touchCancel");
+    else {
+      if (ending === "capture") {
+        await page.evaluate(() => {
+          const viewport = document.getElementById("viewport");
+          viewport?.addEventListener(
+            "pointermove",
+            (event) => viewport.releasePointerCapture(event.pointerId),
+            { once: true },
+          );
+        });
+        await touch("touchMove", [{ ...moved, y: moved.y + 1 }]);
+      } else {
+        await touch("touchStart", [
+          moved,
+          { id: 2, x: moved.x + 60, y: moved.y + 40 },
+        ]);
+      }
+      await touch("touchEnd");
+    }
+    await expect(areaTop).toHaveValue("0");
+    await expect(page.locator("#undo")).toBeDisabled();
+    await expect(pins).toHaveCount(0);
+    await page.locator("#viewport").scrollIntoViewIfNeeded();
+  }
   assert.deepEqual(errors, []);
   await session.detach();
 }

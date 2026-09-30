@@ -680,6 +680,17 @@
   #overlay [data-key] {
     cursor: pointer;
   }
+  #overlay .area-handle[aria-orientation="vertical"] {
+    cursor: ns-resize;
+  }
+  #overlay .area-handle[aria-orientation="horizontal"] {
+    cursor: ew-resize;
+  }
+  #overlay .area-handle:hover .visual,
+  #overlay .area-handle:focus-visible .visual {
+    fill: #991b1b;
+    stroke-width: 3;
+  }
   #viewport[data-mode="select"] #overlay [aria-pressed="true"][data-handle],
   #viewport[data-mode="select"] #overlay [aria-pressed="true"][data-movable] {
     cursor: move;

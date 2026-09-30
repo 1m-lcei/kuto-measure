@@ -80,6 +80,7 @@ interface Drag {
   viewX: number;
   viewY: number;
   moved: boolean;
+  area: { side: number; bounds: ImageRect } | null;
 }
 
 let history = $state.raw(newHistory());
@@ -116,6 +117,41 @@ let referenceStart = $state.raw<GroundPoint | null>(null),
   pendingGuide: CircleCenter | null = null;
 let cursor = $state.raw<ImagePoint | null>(null),
   areaPreview = $state.raw<ImageRect | null>(null);
+let dragArea = $state(false);
+const areaBounds = $derived(areaPreview ?? projection?.renderArea);
+const areaEdges = (bounds: ImageRect) => [
+  bounds.y,
+  bounds.y + bounds.height,
+  bounds.x,
+  bounds.x + bounds.width,
+];
+const areaHandles = $derived.by(() => {
+  if (!dragArea || !areaBounds || !projection) return [];
+  const bounds = areaBounds,
+    size = projection.size,
+    edges = areaEdges(bounds);
+  return ["上", "下", "左", "右"].map((label, side) => {
+    const horizontal = side < 2,
+      coordinate = edges[side];
+    return {
+      label,
+      side,
+      horizontal,
+      coordinate,
+      min: side % 2 ? edges[side ^ 1] + 1 : 0,
+      max:
+        side % 2
+          ? horizontal
+            ? size.height
+            : size.width
+          : edges[side ^ 1] - 1,
+      x1: horizontal ? bounds.x : coordinate,
+      y1: horizontal ? coordinate : bounds.y,
+      x2: horizontal ? bounds.x + bounds.width : coordinate,
+      y2: horizontal ? coordinate : bounds.y + bounds.height,
+    };
+  });
+});
 let frame = 0,
   loadRequest = 0,
   projectRequest = 0;
@@ -180,6 +216,9 @@ const gameSize = $derived.by(() => {
 });
 $effect(() => {
   if (selection && !exists(doc, selection)) selection = null;
+});
+$effect(() => {
+  if (!dragArea && drag?.area) untrack(() => finishDrag(true));
 });
 // Hit-testing uses the rendered SVG geometry, after Svelte has updated its nodes.
 $effect(() => {
@@ -609,6 +648,23 @@ function moveEdit(
   }
   return next;
 }
+function resizeArea(side: number, coordinate: number, bounds: ImageRect) {
+  if (!projection) return;
+  const edges = areaEdges(bounds);
+  const opposite = edges[side ^ 1];
+  const limit = side < 2 ? projection.size.height : projection.size.width;
+  edges[side] = Math.max(
+    side % 2 ? opposite + 1 : 0,
+    Math.min(side % 2 ? limit : opposite - 1, Math.round(coordinate)),
+  );
+  const [top, bottom, left, right] = edges;
+  panels.setArea({
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  });
+}
 function updateDrag(event: PointerEvent) {
   if (touches.has(event.pointerId)) {
     touches.set(event.pointerId, clientPoint(event.clientX, event.clientY));
@@ -626,6 +682,21 @@ function updateDrag(event: PointerEvent) {
     ) >= (event.pointerType === "touch" ? TOUCH_SLOP : 3)
   )
     d.moved = true;
+  if (d.area) {
+    if (d.moved) {
+      const { side, bounds } = d.area;
+      const delta =
+        side < 2
+          ? event.clientY - d.startClient.y
+          : event.clientX - d.startClient.x;
+      resizeArea(
+        side,
+        areaEdges(bounds)[side] + delta / view.state.zoom,
+        bounds,
+      );
+    }
+    return;
+  }
   if (d.pan) {
     if (d.moved) {
       view.move(
@@ -663,9 +734,13 @@ function finishDrag(cancel: boolean, event?: PointerEvent) {
   )
     viewport.releasePointerCapture(previous.pointerId);
   if (cancel) {
+    if (previous.area) panels.cancelArea();
     if (previous.pan && touches.size < 2)
       view.move(previous.viewX, previous.viewY);
     status("操作を取り消しました。");
+  } else if (previous.area) {
+    if (previous.moved)
+      status("ゲーム領域をプレビューしています。「適用」で確定してください。");
   } else if (!previous.moved && event && previous.activateOnClick) {
     activate(pointAt(event.clientX, event.clientY), previous.target);
   } else if (!previous.pan && previous.moved && !previous.label) {
@@ -905,6 +980,14 @@ const onPointerDown = (event: PointerEvent) => {
   if (drag || touchNavigation || !event.isPrimary) return;
   event.preventDefault();
   const node = event.target instanceof Element ? event.target : null;
+  const areaHandle =
+    !space && event.button === 0 && dragArea
+      ? node?.closest<SVGElement>("[data-area-side]")
+      : null;
+  const area =
+    areaHandle && areaBounds
+      ? { side: Number(areaHandle.dataset.areaSide), bounds: areaBounds }
+      : null;
   const target = parseSelection(node),
     label =
       tool === "select" &&
@@ -916,12 +999,13 @@ const onPointerDown = (event: PointerEvent) => {
     target && selection && selectionKey(target) === selectionKey(selection);
   const movable = node?.closest("[data-movable], [data-handle]");
   const pan =
-    space ||
-    event.button === 1 ||
-    tool !== "select" ||
-    !selected ||
-    !movable ||
-    label;
+    !area &&
+    (space ||
+      event.button === 1 ||
+      tool !== "select" ||
+      !selected ||
+      !movable ||
+      label);
   drag = {
     pointerId: event.pointerId,
     startClient: { x: event.clientX, y: event.clientY },
@@ -936,8 +1020,9 @@ const onPointerDown = (event: PointerEvent) => {
     viewX: view.state.x,
     viewY: view.state.y,
     moved: false,
+    area,
   };
-  viewport.focus({ preventScroll: true });
+  (areaHandle ?? viewport).focus({ preventScroll: true });
   viewport.setPointerCapture(event.pointerId);
 };
 const onHoverMove = (event: PointerEvent) => {
@@ -1013,6 +1098,32 @@ const onKeyDown = (event: KeyboardEvent) => {
   if (event.ctrlKey && event.key.toLowerCase() === "y") {
     event.preventDefault();
     performHistory("redo");
+    return;
+  }
+  const areaHandle =
+    event.target instanceof Element
+      ? event.target.closest<SVGElement>("[data-area-side]")
+      : null;
+  if (areaHandle && dragArea && areaBounds && projection) {
+    if (event.ctrlKey || event.metaKey || event.altKey || drag) return;
+    const side = Number(areaHandle.dataset.areaSide);
+    const step = event.shiftKey ? 10 : 1;
+    const decrease = side < 2 ? "ArrowUp" : "ArrowLeft";
+    const increase = side < 2 ? "ArrowDown" : "ArrowRight";
+    const limit = side < 2 ? projection.size.height : projection.size.width;
+    if ([decrease, increase, "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      resizeArea(
+        side,
+        event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? limit
+            : areaEdges(areaBounds)[side] +
+              (event.key === decrease ? -step : step),
+        areaBounds,
+      );
+    }
     return;
   }
   if (event.key === "Delete" && selection) {
@@ -1422,6 +1533,56 @@ onMount(() => {
                 overlapped={overlapKeys}
                 onwarning={status}
               />
+              {#each areaHandles as { label, side, horizontal, coordinate, min, max, x1, y1, x2, y2 } (side)}
+                <g
+                  class="area-handle"
+                  data-area-side={side}
+                  role="slider"
+                  tabindex="0"
+                  aria-label={`ゲーム領域の${label}端`}
+                  aria-describedby="area-drag-hint"
+                  aria-orientation={horizontal ? "vertical" : "horizontal"}
+                  aria-valuemin={min}
+                  aria-valuemax={max}
+                  aria-valuenow={coordinate}
+                  aria-valuetext={`${coordinate} px`}
+                >
+                  <line
+                    {x1}
+                    {y1}
+                    {x2}
+                    {y2}
+                    stroke="transparent"
+                    stroke-width={coarse.current ? 44 : 24}
+                    vector-effect="non-scaling-stroke"
+                    class="line-hit"
+                  />
+                  <line
+                    {x1}
+                    {y1}
+                    {x2}
+                    {y2}
+                    stroke={areaPreview ? "none" : "#ef4444"}
+                    stroke-width="2"
+                    stroke-dasharray="8 5"
+                    vector-effect="non-scaling-stroke"
+                    pointer-events="none"
+                  />
+                  <rect
+                    class="visual"
+                    x={(x1 + x2) / 2 - (horizontal ? 24 : 3) / view.display.zoom}
+                    y={(y1 + y2) / 2 - (horizontal ? 3 : 24) / view.display.zoom}
+                    width={(horizontal ? 48 : 6) / view.display.zoom}
+                    height={(horizontal ? 6 : 48) / view.display.zoom}
+                    rx={3 / view.display.zoom}
+                    fill="#ef4444"
+                    stroke="#fff"
+                    stroke-width="1"
+                    vector-effect="non-scaling-stroke"
+                    pointer-events="none"
+                  />
+                </g>
+              {/each}
             {/if}
           </svg>
         </div>
@@ -1562,6 +1723,7 @@ onMount(() => {
 }}
       bind:advanced
       bind:referenceOpen
+      bind:dragArea
     />
   </div>
   <footer class="statusbar">

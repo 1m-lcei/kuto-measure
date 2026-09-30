@@ -156,6 +156,105 @@ export async function checkGameArea(
   await page.getByRole("button", { name: "ゲーム領域を設定" }).click();
   await expect(inputs[0]).toHaveValue("0");
   await expect(inputs[0]).toBeFocused();
+  // Edge drags share the numeric draft, without changing projection or history.
+  const handles = page.locator(".area-handle");
+  const dragOption = page.getByRole("checkbox", {
+    name: "バーをドラッグして調整",
+  });
+  await expect(dragOption).not.toBeChecked();
+  await expect(handles).toHaveCount(0);
+  await dragOption.check();
+  await expect(handles).toHaveCount(4);
+  const dragEdge = async (side: number, pixels: number, release = true) => {
+    const handle = handles.nth(side);
+    const box = await handle.locator(".visual").boundingBox();
+    const stage = await page.locator("#stage").boundingBox();
+    assert(box && stage);
+    const x = box.x + box.width / 2,
+      y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(
+      x + (side < 2 ? 0 : (pixels * stage.width) / 1536),
+      y + (side < 2 ? (pixels * stage.height) / 709 : 0),
+      { steps: 5 },
+    );
+    if (release) await page.mouse.up();
+  };
+  const beforeDrag = await page.locator("#stage").boundingBox();
+  for (const [side, delta] of [40, -60, 10, -20].entries()) {
+    await dragEdge(side, delta);
+    // Native mouse coordinates may be quantized to CSS pixels (not image pixels).
+    await expect
+      .poll(async () =>
+        Math.abs(Number(await inputs[side].inputValue()) - Math.abs(delta)),
+      )
+      .toBeLessThanOrEqual(2);
+  }
+  const margins = await Promise.all(
+    inputs.map(async (input) => Number(await input.inputValue())),
+  );
+  assert.deepEqual(await page.locator("#stage").boundingBox(), beforeDrag);
+  assert.deepEqual(await clip(), [0, 0, 1536, 709]);
+  await expect(page.locator("#undo")).toBeDisabled();
+  await expect(
+    page.locator('#object-list [data-object-key^="pin:"]'),
+  ).toHaveCount(0);
+  await handles.nth(0).press("ArrowDown");
+  await handles.nth(0).press("Shift+ArrowDown");
+  await expect(inputs[0]).toHaveValue(String(margins[0] + 11));
+  await inputs[0].fill("40");
+  const draggedBounds = [
+    margins[2],
+    40,
+    1536 - margins[2] - margins[3],
+    709 - 40 - margins[1],
+  ];
+  await expect(handles.nth(0)).toHaveAttribute("aria-valuenow", "40");
+  await page.screenshot({
+    path: `test-results/${engine}-game-area-drag.png`,
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "適用", exact: true }).click();
+  await waitSource("manual");
+  assert.deepEqual(await clip(), draggedBounds);
+  await page.locator("#undo").click();
+  await waitSource("fallback");
+  assert.deepEqual(await clip(), [0, 0, 1536, 709]);
+  await page.locator("#redo").click();
+  await waitSource("manual");
+  assert.deepEqual(await clip(), draggedBounds);
+  await page.locator("#undo").click();
+  await waitSource("fallback");
+
+  await page.locator("#zoom-in").click();
+  await dragEdge(0, 25);
+  await expect
+    .poll(async () => Math.abs(Number(await inputs[0].inputValue()) - 25))
+    .toBeLessThanOrEqual(2);
+  await page.locator("#area-cancel").click();
+  await expect(inputs[0]).toHaveValue("0");
+  await page.locator("#fit").click();
+  // Clamp both image boundaries and the opposite edge, including a 1px area.
+  await dragEdge(0, -30);
+  await expect(inputs[0]).toHaveValue("0");
+  await dragEdge(0, 800);
+  await expect(inputs[0]).toHaveValue("708");
+  await page.locator("#area-cancel").click();
+  await handles.nth(3).press("Home");
+  await expect(inputs[3]).toHaveValue("1535");
+  await handles.nth(3).press("End");
+  await expect(inputs[3]).toHaveValue("0");
+  await dragEdge(0, 40, false);
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  await expect(inputs[0]).toHaveValue("0");
+  await expect(page.locator(".area-preview")).toHaveCount(0);
+  await expect(handles).toHaveCount(0);
+  await page.getByRole("button", { name: "ゲーム領域を設定" }).click();
+  await expect(handles).toHaveCount(4);
+  await dragOption.uncheck();
+  await expect(handles).toHaveCount(0);
   await fill([40, 60, 10, 20]);
   await page.locator(".area-preview").waitFor();
   const preview = page.locator(".area-preview-boundary");
