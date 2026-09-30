@@ -58,7 +58,14 @@ import { fitProjectArea, parseProject, serializeProject } from "./project";
 
 import { createViewport } from "./viewport.svelte";
 
-type Tool = "select" | "pin" | "reference" | "measure" | "guide";
+const tools = [
+  ["select", "↖", "選択"],
+  ["pin", "⊕", "ピン"],
+  ["reference", "◎", "基準円"],
+  ["measure", "↔", "測距線"],
+  ["guide", "◌", "補助円"],
+] as const;
+type Tool = (typeof tools)[number][0];
 interface Drag {
   pointerId: number;
   startClient: { x: number; y: number };
@@ -1276,66 +1283,20 @@ onMount(() => {
   <div class="toolbar">
     <fieldset class="tools">
       <legend class="sr-only">操作モード</legend>
-      <button
-        type="button"
-        data-tool="select"
-        aria-pressed={tool === "select"}
-        disabled={!projection}
-        onclick={() => {
-  setTool("select");
+      {#each tools as [value, symbol, label] (value)}
+        <button
+          type="button"
+          data-tool={value}
+          aria-pressed={tool === value}
+          disabled={!projection || (value === "guide" && !scale)}
+          onclick={() => {
+  setTool(value);
   viewport.focus({ preventScroll: true });
 }}
-      >
-        <span>↖</span>選択
-      </button>
-      <button
-        type="button"
-        data-tool="pin"
-        aria-pressed={tool === "pin"}
-        disabled={!projection}
-        onclick={() => {
-  setTool("pin");
-  viewport.focus({ preventScroll: true });
-}}
-      >
-        <span>⊕</span>ピン
-      </button>
-      <button
-        type="button"
-        data-tool="reference"
-        aria-pressed={tool === "reference"}
-        disabled={!projection}
-        onclick={() => {
-  setTool("reference");
-  viewport.focus({ preventScroll: true });
-}}
-      >
-        <span>◎</span>基準円
-      </button>
-      <button
-        type="button"
-        data-tool="measure"
-        aria-pressed={tool === "measure"}
-        disabled={!projection}
-        onclick={() => {
-  setTool("measure");
-  viewport.focus({ preventScroll: true });
-}}
-      >
-        <span>↔</span>測距線
-      </button>
-      <button
-        type="button"
-        data-tool="guide"
-        aria-pressed={tool === "guide"}
-        disabled={!projection || !scale}
-        onclick={() => {
-  setTool("guide");
-  viewport.focus({ preventScroll: true });
-}}
-      >
-        <span>◌</span>補助円
-      </button>
+        >
+          <span>{symbol}</span>{label}
+        </button>
+      {/each}
     </fieldset>
     <div class="history-tools">
       <button

@@ -120,5 +120,70 @@ export async function checkReactivity(
     '<img src=x onerror="alert(1)">',
   );
   await nodes.dispose();
+
+  // An unnamed group still owns its pins.
+  await page.locator("#add-group").click();
+  await page.locator("#object-name").fill("");
+  await page.locator("#object-name").press("Tab");
+  const pin = page.locator('[data-object-key^="pin:"]');
+  await pin.click();
+  await page.locator("#pin-group").selectOption({ index: 1 });
+  await expect(pin.locator("small")).toHaveText("グループ");
+  await page.locator("#undo").click();
+  await expect(pin.locator("small")).toHaveText("未所属");
+  await page.locator("#redo").click();
+  await expect(pin.locator("small")).toHaveText("グループ");
+
+  await page.locator("#fit").click();
+  await page.locator('[data-tool="reference"]').click();
+  const stage = await page.locator("#stage").boundingBox();
+  assert(stage);
+  await page.mouse.click(stage.x + stage.width / 2, stage.y + stage.height / 2);
+  await page.mouse.click(
+    stage.x + stage.width * 0.6,
+    stage.y + stage.height / 2,
+  );
+  await page.locator("#close-reference-panel").uncheck();
+  await page.locator("#reference-radius").fill("500");
+  await page.locator("#reference-radius").press("Tab");
+  for (let i = 0; i < 2; i++) {
+    await page.locator('[data-tool="guide"]').click();
+    await page.locator("#viewport").focus();
+    await page.keyboard.press("Enter");
+    await page.locator("#new-guide-radius").fill("100");
+    await page.locator('#guide-form button[type="submit"]').click();
+    await expect(page.locator("#guide-dialog")).toBeHidden();
+  }
+  // Rejected drafts must reset even when the next object has the same radius.
+  const guides = page.locator('[data-object-key^="guide:"]');
+  const radius = page.locator("#guide-radius");
+  await guides.first().click();
+  await radius.fill("-1");
+  await radius.press("Tab");
+  await expect(page.locator("#error")).toContainText("正の有限数");
+  await guides.last().click();
+  await expect(radius).toHaveValue("100");
+  await guides.first().click();
+  await expect(radius).toHaveValue("100");
+  await radius.fill("200");
+  await expect(guides.first()).toContainText("半径 100.00");
+  await radius.press("Tab");
+  await expect(guides.first()).toContainText("半径 200.00");
+  await page.locator("#undo").click();
+  await expect(radius).toHaveValue("100");
+  await page.locator("#redo").click();
+  await expect(radius).toHaveValue("200");
+
+  // Projection drafts survive unrelated edits, then follow applied history.
+  const pitch = page.locator("#pitch-angle");
+  const initialPitch = await pitch.inputValue();
+  await pitch.fill("35");
+  await page.locator("#undo").click();
+  await expect(pitch).toHaveValue("35");
+  await page.getByRole("button", { name: "投影設定を適用" }).click();
+  await page.locator("#undo").click();
+  await expect(pitch).toHaveValue(initialPitch);
+  await page.locator("#redo").click();
+  await expect(pitch).toHaveValue("35");
   assert.deepEqual(errors, []);
 }

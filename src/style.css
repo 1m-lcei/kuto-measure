@@ -729,19 +729,6 @@
   #empty .screenshot-hint {
     font-size: 12px;
   }
-  .empty-mark {
-    height: 78px;
-    width: 78px;
-    display: grid;
-    place-items: center;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    border-radius: 22px;
-    corner-shape: squircle;
-    font-size: 43px;
-    color: var(--accent);
-    box-shadow: 0 8px 24px #00000010;
-  }
   .file-types {
     font-size: 9px;
     letter-spacing: 1.5px;

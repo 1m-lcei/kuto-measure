@@ -210,45 +210,25 @@ export function closeMenu() {
       <fieldset class="theme-settings menu-section">
         <legend>テーマ</legend>
         <div class="theme-options">
-          <label>
-            <input
-              type="radio"
-              name="theme"
-              bind:group={theme}
-              onchange={(event) => {
+          {#each [
+   ["system", "システム"],
+   ["light", "ライト"],
+   ["dark", "ダーク"],
+ ] as [value, label] (value)}
+            <label>
+              <input
+                type="radio"
+                name="theme"
+                bind:group={theme}
+                onchange={(event) => {
   theme = event.currentTarget.value;
   saveTheme();
 }}
-              value="system"
-            >
-            システム
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="theme"
-              bind:group={theme}
-              onchange={(event) => {
-  theme = event.currentTarget.value;
-  saveTheme();
-}}
-              value="light"
-            >
-            ライト
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="theme"
-              bind:group={theme}
-              onchange={(event) => {
-  theme = event.currentTarget.value;
-  saveTheme();
-}}
-              value="dark"
-            >
-            ダーク
-          </label>
+                {value}
+              >
+              {label}
+            </label>
+          {/each}
         </div>
       </fieldset>
       <div class="menu-section">

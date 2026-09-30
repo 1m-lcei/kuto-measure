@@ -169,11 +169,15 @@ let areaValues = $state<(number | undefined)[]>([0, 0, 0, 0]);
 let areaDirty = $state(false),
   areaError = $state(""),
   invalidSides = $state<number[]>([]);
-let pitch = $state<number | undefined>(0),
-  fov = $state<number | undefined>(0),
-  roll = $state<number | undefined>(0),
-  principalX = $state<number | undefined>(0),
-  principalY = $state<number | undefined>(0);
+let pitch = $derived<number | undefined>(calibration.elevationDegrees),
+  fov = $derived<number | undefined>(calibration.verticalFovDegrees),
+  roll = $derived<number | undefined>(calibration.rollDegrees),
+  principalX = $derived<number | undefined>(calibration.principalPoint.x),
+  principalY = $derived<number | undefined>(calibration.principalPoint.y);
+let referenceRadius = $derived<number | undefined>(
+    doc.reference?.radiusGame ?? undefined,
+  ),
+  guideRadius = $derived<number | undefined>(selectedGuide?.radiusGame);
 let radiusInput: HTMLInputElement,
   nameInput: HTMLInputElement,
   areaForm: HTMLFormElement,
@@ -190,14 +194,6 @@ const numeric = (input: HTMLInputElement) => {
   if (!input.value.trim()) throw new Error("半径を入力してください。");
   return gameDistance(Number(input.value));
 };
-$effect(() => {
-  const c = calibration;
-  pitch = c.elevationDegrees;
-  fov = c.verticalFovDegrees;
-  roll = c.rollDegrees;
-  principalX = c.principalPoint.x;
-  principalY = c.principalPoint.y;
-});
 $effect(() => {
   const bounds = area,
     imageSize = size;
@@ -457,22 +453,22 @@ const selectionTitles = {
           data-source={areaSource ?? ""}
           data-confirmed={!needsConfirmation}
         >
-          <span id="area-source"
-            ><span
-              data-state={areaSource === "fallback" ? "full" : (areaSource ?? "none")}
-              >{areaSource === "auto"
+          <span
+            id="area-source"
+            data-state={areaSource === "fallback" ? "full" : (areaSource ?? "none")}
+            >{areaSource === "auto"
   ? "ゲーム領域を自動検出"
   : areaSource === "manual"
     ? "ゲーム領域を手動設定"
     : areaSource
       ? "画像全体を使用"
       : "画像未選択"}</span
-            ></span
           >
-          <span id="area-confirmation" hidden={!areaSource}
-            ><span data-state={needsConfirmation ? "pending" : "confirmed"}
-              >{needsConfirmation ? "（要確認）" : "（確認済み）"}</span
-            ></span
+          <span
+            id="area-confirmation"
+            hidden={!areaSource}
+            data-state={needsConfirmation ? "pending" : "confirmed"}
+            >{needsConfirmation ? "（要確認）" : "（確認済み）"}</span
           >
         </p>
         <p class="muted" id="area-hint">
@@ -568,14 +564,12 @@ const selectionTitles = {
         <span class="eyebrow">距離スケール</span>
         <div class="scale-title">
           <span class="scale-dot"></span>
-          <strong id="scale-state"
-            ><span data-state={scaleState}
-              >{scaleTitles[scaleState]}</span
-            ></strong
+          <strong id="scale-state" data-state={scaleState}
+            >{scaleTitles[scaleState]}</strong
           >
         </div>
-        <p id="scale-hint">
-          <span data-state={scaleState}>{scaleHints[scaleState]}</span>
+        <p id="scale-hint" data-state={scaleState}>
+          {scaleHints[scaleState]}
         </p>
         <label>
           基準円の半径
@@ -586,7 +580,7 @@ const selectionTitles = {
             step="any"
             placeholder="例：500"
             bind:this={radiusInput}
-            value={doc.reference?.radiusGame ?? ""}
+            bind:value={referenceRadius}
             disabled={!doc.reference}
             onchange={(event) => void changeRadius(event.currentTarget)}
             onkeydown={(event) => {
@@ -608,8 +602,8 @@ const selectionTitles = {
       </section>
       <section class="saved-reference" aria-labelledby="saved-reference-title">
         <h2 id="saved-reference-title">ブラウザに保存した基準</h2>
-        <p id="saved-reference-state" role="status">
-          <span data-state={savedState}>{savedStates[savedState]}</span>
+        <p id="saved-reference-state" role="status" data-state={savedState}>
+          {savedStates[savedState]}
         </p>
         <p id="saved-reference-error" role="alert" class="detail">
           {presetError}
@@ -627,17 +621,18 @@ const selectionTitles = {
             class="wide"
             disabled={!canSave}
             onclick={saveReference}
+            data-state={savedExists ? "overwrite" : "new"}
           >
-            <span data-state={savedExists ? "overwrite" : "new"}
-              >{savedExists ? "現在の基準で上書き" : "現在の基準を保存"}</span
-            >
+            {savedExists ? "現在の基準で上書き" : "現在の基準を保存"}
           </button>
-          <p id="save-reference-hint" class="muted">
-            <span data-state={canSave ? "available" : "unavailable"}
-              >{canSave
+          <p
+            id="save-reference-hint"
+            class="muted"
+            data-state={canSave ? "available" : "unavailable"}
+          >
+            {canSave
   ? "確定済みの円とカメラ設定を保存します。調整後は明示的に上書きしてください。"
-  : "先に基準円のゲーム内半径を設定してください。"}</span
-            >
+  : "先に基準円のゲーム内半径を設定してください。"}
           </p>
           <button
             id="delete-saved-reference"
@@ -786,10 +781,12 @@ const selectionTitles = {
             削除
           </button>
         </div>
-        <p id="selection-title" class="muted">
-          <span data-state={selection?.kind ?? "none"}
-            >{selectionTitles[selection?.kind ?? "none"]}</span
-          >
+        <p
+          id="selection-title"
+          class="muted"
+          data-state={selection?.kind ?? "none"}
+        >
+          {selectionTitles[selection?.kind ?? "none"]}
         </p>
         <label id="name-row" hidden={!selectedPin && !selectedGroup}>
           名前
@@ -827,7 +824,7 @@ const selectionTitles = {
             type="number"
             min="0"
             step="any"
-            value={selectedGuide?.radiusGame ?? ""}
+            bind:value={guideRadius}
             onchange={(event) =>
   safely(() => {
     if (selectedGuide)
@@ -870,13 +867,7 @@ const selectionTitles = {
         <div class="endpoint-fields">
           <label>
             始点
-            <select
-              id="measure-from"
-              value={from}
-              onchange={(event) => {
-  from = event.currentTarget.value;
-}}
-            >
+            <select id="measure-from" bind:value={from}>
               <option value="">対象を選択</option>
               {#each endpoints as endpoint (endpoint.value)}
                 <option value={endpoint.value}>{endpoint.label}</option>
@@ -885,13 +876,7 @@ const selectionTitles = {
           </label>
           <label>
             終点
-            <select
-              id="measure-to"
-              value={to}
-              onchange={(event) => {
-  to = event.currentTarget.value;
-}}
-            >
+            <select id="measure-to" bind:value={to}>
               <option value="">対象を選択</option>
               {#each endpoints as endpoint (endpoint.value)}
                 <option value={endpoint.value}>{endpoint.label}</option>
@@ -946,7 +931,8 @@ const selectionTitles = {
             {@render row(
   { kind: "pin", id: pin.id },
   pin.name || "ピン",
-  doc.groups.find((g) => g.id === pin.groupId)?.name || "未所属",
+  (doc.groups.find((g) => g.id === pin.groupId)?.name ?? "未所属") ||
+    "グループ",
   "•",
   "ピン",
 )}

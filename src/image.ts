@@ -9,7 +9,6 @@ export interface LoadedImage extends Size {
   renderArea: ImageRect;
   url: string;
   name: string;
-  file: File;
   image: HTMLImageElement;
 }
 
@@ -358,7 +357,6 @@ export async function loadImage(file: File): Promise<LoadedImage> {
       renderArea: readRenderArea(image, size),
       url,
       name: file.name,
-      file,
       image,
     };
   } catch (error) {

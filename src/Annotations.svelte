@@ -88,7 +88,6 @@ $effect(() => {
     data-part={control ? "handle" : "body"}
     data-movable={m.movable ? "true" : undefined}
     data-handle={m.handle}
-    data-angle={m.angle}
     tabindex="0"
     role="button"
     aria-pressed={m.key === selected}

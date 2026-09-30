@@ -10,9 +10,7 @@ export async function checkInteractions(
 ) {
   const modes = page.getByRole("group", { name: "操作モード" });
   const key = "kuto-measure.reference-preset";
-  const savedState = page.locator(
-    "#saved-reference-state > [data-state]:not([hidden])",
-  );
+  const savedState = page.locator("#saved-reference-state");
   const savedError = page
     .getByRole("region", { name: "ブラウザに保存した基準" })
     .getByRole("alert");

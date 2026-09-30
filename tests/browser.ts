@@ -399,9 +399,10 @@ try {
           ),
         )
         .toBe(1);
-      await expect(
-        page.locator("#scale-state > [data-state]:not([hidden])"),
-      ).toHaveAttribute("data-state", "relative");
+      await expect(page.locator("#scale-state")).toHaveAttribute(
+        "data-state",
+        "relative",
+      );
       await expect
         .poll(async () =>
           Number(
@@ -588,9 +589,10 @@ try {
           .locator("#reference-panel")
           .evaluate((el) => (el as HTMLDetailsElement).open)),
       );
-      await expect(
-        page.locator("#scale-state > [data-state]:not([hidden])"),
-      ).toHaveAttribute("data-state", "absolute");
+      await expect(page.locator("#scale-state")).toHaveAttribute(
+        "data-state",
+        "absolute",
+      );
       await modes.getByRole("button", { name: /ピン/ }).click();
       await clickImage(page, 500, 400);
       await clickImage(page, 1000, 470);
@@ -893,9 +895,10 @@ try {
         assert.equal(await measurement.first().textContent(), oldDistance);
         await page.locator('[data-object-key="reference"]').click();
         await page.getByRole("button", { name: "削除", exact: true }).click();
-        await expect(
-          page.locator("#scale-state > [data-state]:not([hidden])"),
-        ).toHaveAttribute("data-state", "relative");
+        await expect(page.locator("#scale-state")).toHaveAttribute(
+          "data-state",
+          "relative",
+        );
         await expect
           .poll(async () =>
             Number(
