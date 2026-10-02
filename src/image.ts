@@ -12,7 +12,7 @@ export interface LoadedImage extends Size {
   image: HTMLImageElement;
 }
 
-/** Detect paired, nearly uniform black/solid or blue patterned game borders. */
+/** Find border candidates, then accept symmetric pairs or a bounded window frame. */
 export function detectRenderArea(
   pixels: Pick<ImageData, "width" | "height" | "data">,
 ): ImageRect {
@@ -21,136 +21,249 @@ export function detectRenderArea(
     right = width,
     top = 0,
     bottom = height;
+  // Reuse scratch storage across rows; returned colors belong to the line cache.
+  const histogram = new Uint32Array(3 * 256),
+    samples = new Uint8Array(3 * Math.max(width, height)),
+    median = new Uint8Array(3);
   const bandColor = (
     line: number,
     horizontal: boolean,
     blueOnly = false,
   ): number[] | null => {
     const start = horizontal ? left : top,
-      end = horizontal ? right : bottom;
-    const sums = [0, 0, 0],
-      squares = [0, 0, 0];
-    const samples: number[][] = [];
-    let count = 0;
-    for (let i = start; i < end; i++) {
+      end = horizontal ? right : bottom,
+      middleStart = start + (end - start) * 0.25,
+      middleEnd = start + (end - start) * 0.75,
+      stride = horizontal ? 4 : width * 4;
+    if (blueOnly) histogram.fill(0);
+    let count = 0,
+      sumR = 0,
+      sumG = 0,
+      sumB = 0,
+      squareR = 0,
+      squareG = 0,
+      squareB = 0;
+    for (
+      let i = start,
+        offset = 4 * (horizontal ? line * width + start : start * width + line);
+      i < end;
+      i++, offset += stride
+    ) {
       // Sample both sides, avoiding the central home indicator.
-      if (
-        blueOnly &&
-        i >= start + (end - start) * 0.25 &&
-        i < start + (end - start) * 0.75
-      )
-        continue;
-      const offset = 4 * (horizontal ? line * width + i : i * width + line);
+      if (blueOnly && i >= middleStart && i < middleEnd) continue;
       if (data[offset + 3] < 250) return null;
-      if (
-        blueOnly &&
-        (data[offset + 2] - data[offset] <= 25 ||
-          data[offset + 1] - data[offset] <= 8)
-      )
+      const r = data[offset],
+        g = data[offset + 1],
+        b = data[offset + 2];
+      if (blueOnly) {
+        if (b - r <= 25 || g - r <= 8) continue;
+        histogram[r]++;
+        histogram[256 + g]++;
+        histogram[512 + b]++;
+        samples[count * 3] = r;
+        samples[count * 3 + 1] = g;
+        samples[count * 3 + 2] = b;
+        count++;
         continue;
-      count++;
-      if (blueOnly)
-        samples.push([data[offset], data[offset + 1], data[offset + 2]]);
-      for (let channel = 0; channel < 3; channel++) {
-        const value = data[offset + channel];
-        sums[channel] += value;
-        squares[channel] += value * value;
       }
+      count++;
+      sumR += r;
+      sumG += g;
+      sumB += b;
+      squareR += r * r;
+      squareG += g * g;
+      squareB += b * b;
     }
-    if (blueOnly && samples.length) {
+    if (!count || (blueOnly && count < (end - start) * 0.5 * 0.7)) return null;
+    if (blueOnly) {
       // ponytail: reject small cursor overlays; large/ambiguous frames need manual bounds.
-      const median = [0, 1, 2].map(
-        (channel) =>
-          samples.map((color) => color[channel]).sort((a, b) => a - b)[
-            Math.floor(samples.length / 2)
-          ],
-      );
+      for (let channel = 0; channel < 3; channel++) {
+        // Match sorted[floor(count / 2)], including an even sample count.
+        let rank = Math.floor(count / 2);
+        for (let value = 0; value < 256; value++) {
+          rank -= histogram[channel * 256 + value];
+          if (rank < 0) {
+            median[channel] = value;
+            break;
+          }
+        }
+      }
+      const sampleEnd = count * 3;
       count = 0;
-      sums.fill(0);
-      squares.fill(0);
-      for (const color of samples) {
+      for (let offset = 0; offset < sampleEnd; offset += 3) {
+        const r = samples[offset],
+          g = samples[offset + 1],
+          b = samples[offset + 2];
         if (
-          color.some((value, channel) => Math.abs(value - median[channel]) > 32)
+          Math.abs(r - median[0]) > 32 ||
+          Math.abs(g - median[1]) > 32 ||
+          Math.abs(b - median[2]) > 32
         )
           continue;
         count++;
-        for (let channel = 0; channel < 3; channel++) {
-          sums[channel] += color[channel];
-          squares[channel] += color[channel] ** 2;
-        }
+        sumR += r;
+        sumG += g;
+        sumB += b;
+        squareR += r * r;
+        squareG += g * g;
+        squareB += b * b;
       }
     }
     if (!count || (blueOnly && count < (end - start) * 0.5 * 0.7)) return null;
-    const mean = sums.map((sum) => sum / count);
+    const r = sumR / count,
+      g = sumG / count,
+      b = sumB / count;
     const variance = Math.max(
-      ...squares.map((sum, i) => sum / count - mean[i] ** 2),
+      squareR / count - r * r,
+      squareG / count - g * g,
+      squareB / count - b * b,
     );
-    return variance <= 4 ||
-      (variance <= 144 && mean[2] - mean[0] > 25 && mean[1] - mean[0] > 8)
-      ? mean
+    return variance <= 4 || (variance <= 144 && b - r > 25 && g - r > 8)
+      ? [r, g, b]
       : null;
   };
-  const edges = (
+  type Band = { inset: number; end: number };
+  const bands = (
     length: number,
     horizontal: boolean,
-    blueOnly = false,
-  ): [number, number] => {
+    reverse: boolean,
+    blueOnly: boolean,
+    insetLimit: number,
+  ): Band[] => {
     const limit = Math.floor(length * 0.22),
       minimum = Math.max(2, length * 0.01);
-    // ponytail: blue bands sample the outer quarters and skip at most 4% outer chrome;
-    // use an explicit render-area control for larger or ambiguous app frames.
-    const insetLimit = blueOnly ? Math.floor(length * 0.04) : 0;
-    const scan = (
-      reverse: boolean,
-      expectedThickness = 0,
-    ): [number, number] => {
-      const colorAt = (offset: number) =>
-        bandColor(reverse ? length - offset - 1 : offset, horizontal, blueOnly);
-      let previousEdge: number[] | null = null;
-      for (let inset = 0; inset <= insetLimit; inset++) {
-        const edge = colorAt(inset);
-        if (!edge) {
-          previousEdge = null;
-          continue;
-        }
-        // Do not trim a uniform, mismatched band until its thickness happens to fit.
-        if (previousEdge?.every((value, i) => Math.abs(value - edge[i]) <= 8))
-          continue;
-        previousEdge = edge;
-        let end = inset;
-        while (end < limit) {
-          const color = colorAt(end);
-          if (!color?.every((value, i) => Math.abs(value - edge[i]) <= 32))
-            break;
-          end++;
-        }
-        if (
-          end - inset >= minimum &&
-          (!expectedThickness ||
-            Math.abs(end - inset - expectedThickness) <=
-              Math.max(2, expectedThickness * 0.15))
-        )
-          return [inset, end];
-      }
-      return [0, 0];
+    const colors: (number[] | null | undefined)[] = [];
+    const colorAt = (offset: number) => {
+      if (colors[offset] === undefined)
+        colors[offset] = bandColor(
+          reverse ? length - offset - 1 : offset,
+          horizontal,
+          blueOnly,
+        );
+      return colors[offset];
     };
-    const [firstInset, start] = scan(false),
-      [lastInset, end] = scan(true, blueOnly ? start - firstInset : 0);
-    // ponytail: recognize paired borders only; keep the full image if the border is ambiguous.
-    const firstThickness = start - firstInset,
-      lastThickness = end - lastInset;
-    return firstThickness >= minimum &&
-      lastThickness >= minimum &&
-      start < limit &&
-      end < limit &&
-      Math.abs(firstThickness - lastThickness) <=
-        Math.max(2, Math.max(firstThickness, lastThickness) * 0.15)
-      ? [start, length - end]
-      : [0, length];
+    const candidates: Band[] = [];
+    let previousEdge: number[] | null = null;
+    for (let inset = 0; inset <= insetLimit; inset++) {
+      const edge = colorAt(inset);
+      if (!edge) {
+        previousEdge = null;
+        continue;
+      }
+      // A uniform band has one start; do not shorten it to fit an acceptance rule.
+      if (previousEdge?.every((value, i) => Math.abs(value - edge[i]) <= 8))
+        continue;
+      previousEdge = edge;
+      let end = inset;
+      while (end < inset + limit) {
+        const color = colorAt(end);
+        if (!color?.every((value, i) => Math.abs(value - edge[i]) <= 32)) break;
+        end++;
+      }
+      if (end - inset >= minimum) candidates.push({ inset, end });
+    }
+    return candidates;
+  };
+  const symmetric = (
+    length: number,
+    first: Band | undefined,
+    last: Band | undefined,
+  ): [number, number] | null => {
+    if (!first || !last) return null;
+    const a = first.end - first.inset,
+      b = last.end - last.inset;
+    return first.end < Math.floor(length * 0.22) &&
+      last.end < Math.floor(length * 0.22) &&
+      Math.abs(a - b) <= Math.max(2, Math.max(a, b) * 0.15)
+      ? [first.end, length - last.end]
+      : null;
+  };
+  const titleBarEnd = (): number | null => {
+    // ponytail: recognize thin light/dark neutral title bars, not arbitrary app chrome;
+    // colored or larger frames still need manual bounds.
+    const start = Math.max(1, Math.ceil(height * 0.002)),
+      limit = Math.floor(height * 0.06);
+    let end = start,
+      tone = 0;
+    for (; end <= limit; end++) {
+      let light = 0,
+        dark = 0,
+        count = 0;
+      for (
+        let x = Math.ceil(left + (right - left) * 0.1);
+        x < left + (right - left) * 0.9;
+        x++
+      ) {
+        const offset = (end * width + x) * 4;
+        const low = Math.min(data[offset], data[offset + 1], data[offset + 2]),
+          high = Math.max(data[offset], data[offset + 1], data[offset + 2]);
+        count++;
+        if (data[offset + 3] < 250 || high - low > 32) continue;
+        if (low >= 180) light++;
+        if (high <= 80) dark++;
+      }
+      const next = light >= count * 0.9 ? 1 : dark >= count * 0.9 ? -1 : 0;
+      if (!next || (tone && tone !== next)) break;
+      tone = next;
+    }
+    return end <= limit && end - start >= Math.max(2, height * 0.01)
+      ? end
+      : null;
+  };
+  const edges = (length: number, horizontal: boolean): [number, number] => {
+    const full: [number, number] = [0, length];
+    const plain = symmetric(
+      length,
+      bands(length, horizontal, false, false, 0)[0],
+      bands(length, horizontal, true, false, 0)[0],
+    );
+    if (plain || !horizontal) return plain ?? full;
+
+    const insetLimit = Math.floor(length * 0.04),
+      first = bands(length, true, false, true, Math.floor(length * 0.06)),
+      last = bands(length, true, true, true, insetLimit);
+    const upper = first.find((band) => band.inset <= insetLimit);
+    const paired = symmetric(
+      length,
+      upper,
+      upper
+        ? last.find(
+            (band) =>
+              Math.abs(band.end - band.inset - (upper.end - upper.inset)) <=
+              Math.max(2, (upper.end - upper.inset) * 0.15),
+          )
+        : undefined,
+    );
+    if (paired) return paired;
+
+    const titleEnd = titleBarEnd();
+    if (titleEnd === null) return full;
+    const windowTop = first.find(
+      (band) =>
+        Math.abs(band.inset - titleEnd) <= 2 &&
+        !bandColor(band.end, true, true),
+    );
+    // Require a scene boundary beyond the outer chrome, not a footer fragment or
+    // a color transition between two blue bands.
+    const windowBottom = last
+      .filter(
+        (band) =>
+          band.end > insetLimit &&
+          !bandColor(length - band.end - 1, true, true),
+      )
+      .reduce<Band | undefined>(
+        (best, band) =>
+          !best || band.end - band.inset > best.end - best.inset ? band : best,
+        undefined,
+      );
+    const bounded = (band: Band | undefined): band is Band =>
+      !!band && band.end - band.inset < Math.floor(length * 0.22);
+    return bounded(windowTop) && bounded(windowBottom)
+      ? [windowTop.end, length - windowBottom.end]
+      : full;
   };
   [left, right] = edges(width, false);
   [top, bottom] = edges(height, true);
-  if (top === 0 && bottom === height) [top, bottom] = edges(height, true, true);
   [left, right] = edges(width, false);
   return { x: left, y: top, width: right - left, height: bottom - top };
 }

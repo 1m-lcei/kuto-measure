@@ -6,22 +6,40 @@ import {
   validateSize,
 } from "../src/image";
 
+function pixels(
+  border: (x: number, y: number) => number[] | null,
+  width = 200,
+  height = 100,
+) {
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const color = border(x, y) ?? [
+        (x * 17) % 256,
+        (y * 19 + x * 3) % 256,
+        (x * 29) % 256,
+      ];
+      data.set([...color, 255], (y * width + x) * 4);
+    }
+  return { width, height, data };
+}
+
+test("blue-band statistics handle odd/even samples and reuse buffers across the full color range", () => {
+  for (const width of [199, 200, 201]) {
+    const low = [0, 9, 26],
+      high = [205, 225, 255];
+    const image = pixels((x, y) => {
+      if (y >= 10 && y < 90) return null;
+      // Opposite-color cursor pixels force the robust blue-band path on both edges.
+      return y < 10 !== x < 5 ? low : high;
+    }, width);
+    expect(detectRenderArea(image)).toEqual({ x: 0, y: 10, width, height: 80 });
+  }
+});
+
 test("paired game borders are detected without treating scene content or a solid image as borders", () => {
   const width = 200,
     height = 100;
-  const pixels = (border: (x: number, y: number) => number[] | null) => {
-    const data = new Uint8ClampedArray(width * height * 4);
-    for (let y = 0; y < height; y++)
-      for (let x = 0; x < width; x++) {
-        const color = border(x, y) ?? [
-          (x * 17) % 256,
-          (y * 19 + x * 3) % 256,
-          (x * 29) % 256,
-        ];
-        data.set([...color, 255], (y * width + x) * 4);
-      }
-    return { width, height, data };
-  };
   const full = { x: 0, y: 0, width, height };
   expect(detectRenderArea(pixels(() => null))).toEqual(full);
   expect(detectRenderArea(pixels(() => [55, 105, 155]))).toEqual(full);
@@ -115,6 +133,101 @@ test("paired game borders are detected without treating scene content or a solid
       if (y < 6 || y >= 94) return [(x * 31) % 256, 10, 10];
       return y < 16 || y >= 84 ? [55, 105, 155] : null;
     },
+  ])
+    expect(detectRenderArea(pixels(border))).toEqual(full);
+});
+
+test("a thin neutral title bar permits asymmetric blue bands without changing ordinary detection", () => {
+  for (const scale of [1, 2, 4]) {
+    const width = 200 * scale,
+      height = 100 * scale;
+    for (const title of [
+      [235, 240, 245],
+      [35, 35, 35],
+    ]) {
+      const image = pixels(
+        (x, y) => {
+          if (y < Math.max(1, Math.ceil(height * 0.002))) return [20, 20, 20];
+          if (y < 5 * scale) {
+            // Title text/icons, plus small marks within the sampled center.
+            return x < 20 * scale ||
+              x > 185 * scale ||
+              (x > 80 * scale && x < 85 * scale)
+              ? [120, 120, 120]
+              : title;
+          }
+          // The top boundary exceeds 22% of image height, but the blue band does not.
+          return y < 23 * scale || y >= 90 * scale
+            ? [55, 105, 155].map((value) => value + (x % 8))
+            : null;
+        },
+        width,
+        height,
+      );
+      expect(detectRenderArea(image)).toEqual({
+        x: 0,
+        y: 23 * scale,
+        width,
+        height: 67 * scale,
+      });
+    }
+  }
+  // The main lower band wins over fragments below a footer, cursor and home indicator.
+  expect(
+    detectRenderArea(
+      pixels((x, y) => {
+        if (y < 5) return [235, 240, 245];
+        if (y >= 99) return [55, 105, 155];
+        if (y >= 98) return [20, 30, 35];
+        if (y >= 96) return [40, 80, 120];
+        if (y >= 90 && y < 93 && x >= 75 && x < 125) return [245, 245, 245];
+        if (y >= 90 && y < 94 && x < 5) return [200, 235, 255];
+        return y < 23 || y >= 88 ? [55, 105, 155] : null;
+      }),
+    ),
+  ).toEqual({ x: 0, y: 23, width: 200, height: 65 });
+
+  const full = { x: 0, y: 0, width: 200, height: 100 };
+  // If a footer hides the main band's start beyond the allowed inset, do not use
+  // its small blue fragments as a substitute for the game boundary.
+  expect(
+    detectRenderArea(
+      pixels((_x, y) => {
+        if (y < 5) return [235, 240, 245];
+        if (y >= 98) return [55, 105, 155];
+        if (y >= 96) return [20, 30, 35];
+        if (y >= 94) return [40, 80, 120];
+        return y < 23 || y >= 88 ? [55, 105, 155] : null;
+      }),
+    ),
+  ).toEqual(full);
+  for (const border of [
+    (_x: number, y: number) => (y < 5 ? [235, 240, 245] : null),
+    (_x: number, y: number) =>
+      y < 5 ? [235, 240, 245] : y < 23 ? [55, 105, 155] : null,
+    (_x: number, y: number) =>
+      y < 5 ? [235, 240, 245] : y >= 90 ? [55, 105, 155] : null,
+    (_x: number, y: number) =>
+      y < 9 ? [235, 240, 245] : y < 23 || y >= 94 ? [55, 105, 155] : null,
+    (_x: number, y: number) =>
+      y < 5 ? [150, 70, 55] : y < 23 || y >= 90 ? [55, 105, 155] : null,
+    (x: number, y: number) =>
+      y < 5
+        ? [(x * 31) % 256, 10, 10]
+        : y < 23 || y >= 90
+          ? [55, 105, 155]
+          : null,
+    // A neutral strip separated from the blue band by scene content is not a title bar.
+    (_x: number, y: number) =>
+      y < 5
+        ? [235, 240, 245]
+        : (y >= 10 && y < 23) || y >= 90
+          ? [55, 105, 155]
+          : null,
+    // Keep rejecting oversized and asymmetric bands without title-bar evidence.
+    (_x: number, y: number) =>
+      y < 5 ? [235, 240, 245] : y < 30 || y >= 90 ? [55, 105, 155] : null,
+    (_x: number, y: number) => (y < 18 || y >= 90 ? [55, 105, 155] : null),
   ])
     expect(detectRenderArea(pixels(border))).toEqual(full);
 });
