@@ -449,9 +449,13 @@ export async function readImageSize(file: File): Promise<Size> {
   throw invalid();
 }
 
-export async function loadImage(file: File): Promise<LoadedImage> {
+export async function loadImage(
+  file: File,
+  isCurrent: () => boolean,
+): Promise<LoadedImage | null> {
   // EXIF rotation can swap axes, but leaves the pixel count unchanged.
   validateSize(await readImageSize(file));
+  if (!isCurrent()) return null;
   const url = URL.createObjectURL(file);
   try {
     const image = new Image();
@@ -462,6 +466,10 @@ export async function loadImage(file: File): Promise<LoadedImage> {
       throw new Error(
         "画像を読み込めませんでした。ファイルが破損していないか確認してください。",
       );
+    }
+    if (!isCurrent()) {
+      URL.revokeObjectURL(url);
+      return null;
     }
     const size = { width: image.naturalWidth, height: image.naturalHeight };
     validateSize(size);

@@ -478,7 +478,7 @@ const selectionTitles = {
   </button>
 {/snippet}
 
-<aside class="inspector-stack" aria-label="測定と画像設定">
+<aside class="inspector-stack" aria-label="測定と画像設定" inert={loading}>
   <div class="panel-switch" role="group" aria-label="パネル表示">
     <button
       id="edit-panel-button"

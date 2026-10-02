@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { chromium, firefox, type Page, webkit } from "playwright";
 import { expect } from "playwright/test";
 import { checkGameArea } from "./game-area";
+import { checkImageLoading } from "./image-loading";
 import { checkInteractions } from "./interactions";
 import { checkProject } from "./project";
 import { checkReactivity } from "./reactivity";
@@ -1060,6 +1061,13 @@ try {
       ).toBeHidden();
       await checkInteractions(page, name, await imagePayload(page));
       await checkGameArea(page, name, await imagePayload(page));
+      const loadingPage = await context.newPage();
+      try {
+        await loadingPage.goto(page.url());
+        await checkImageLoading(loadingPage, await imagePayload(loadingPage));
+      } finally {
+        await loadingPage.close();
+      }
       const projectPage = await context.newPage();
       try {
         await projectPage.goto(`http://127.0.0.1:${server.port}/nested/`);

@@ -385,6 +385,7 @@ function selectObject(next: Selection) {
   cursor = null;
 }
 function editDocument(edit: Edit) {
+  if (loading) return false;
   finishDrag(true);
   try {
     const next = applyEdit(history.present, edit);
@@ -456,6 +457,7 @@ function addMeasurement(a: Endpoint, b: Endpoint) {
   status("測距線を追加しました。");
 }
 function performHistory(direction: "undo" | "redo") {
+  if (loading) return;
   finishDrag(true);
   panels.cancelArea();
   referenceStart = null;
@@ -845,7 +847,8 @@ async function openFiles(files: FileList | File[]) {
 
   status("画像を読み込んでいます…");
   try {
-    const next = await loadImage(files[0]);
+    const next = await loadImage(files[0], () => request === loadRequest);
+    if (!next) return;
     if (request !== loadRequest) {
       URL.revokeObjectURL(next.url);
       return;
@@ -950,7 +953,7 @@ async function saveExport(name: string, picker?: SavePicker) {
 }
 const onGuideSubmit = (event: SubmitEvent) => {
   event.preventDefault();
-  if (!pendingGuide || !projection) return;
+  if (loading || !pendingGuide || !projection) return;
   try {
     if (guideRadius === undefined) throw new Error("半径を入力してください。");
     const radius = gameDistance(guideRadius),
@@ -1070,6 +1073,7 @@ const onBlur = () => {
   touchNavigation = false;
 };
 const onKeyDown = (event: KeyboardEvent) => {
+  if (loading) return;
   if (event.key === "Tab") {
     hoverPoint = null;
     keyboardHover = true;
@@ -1393,7 +1397,7 @@ onMount(() => {
 />
 <main>
   <div class="toolbar">
-    <fieldset class="tools">
+    <fieldset class="tools" disabled={loading}>
       <legend class="sr-only">操作モード</legend>
       {#each tools as [value, symbol, label] (value)}
         <button
@@ -1418,7 +1422,7 @@ onMount(() => {
         title="元に戻す (Ctrl / Cmd + Z)"
         aria-label="元に戻す"
         onclick={() => performHistory("undo")}
-        disabled={!history.past.length}
+        disabled={loading || !history.past.length}
       >
         ↶
       </button>
@@ -1429,7 +1433,7 @@ onMount(() => {
         title="やり直す"
         aria-label="やり直す"
         onclick={() => performHistory("redo")}
-        disabled={!history.future.length}
+        disabled={loading || !history.future.length}
       >
         ↷
       </button>
@@ -1616,6 +1620,7 @@ onMount(() => {
             <button
               id="area-confirm"
               type="button"
+              disabled={loading}
               aria-label="問題なし：ゲーム領域を確認済みにする"
               onclick={() => {
   if (editDocument({ type: "confirm-area" }))
@@ -1630,6 +1635,7 @@ onMount(() => {
             <button
               id="area-open"
               type="button"
+              disabled={loading}
               aria-controls="game-area"
               onclick={() => void panels.openArea()}
             >
