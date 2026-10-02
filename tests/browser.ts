@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { chromium, firefox, type Page, webkit } from "playwright";
 import { expect } from "playwright/test";
 import { checkGameArea } from "./game-area";
+import { checkHover } from "./hover";
 import { checkImageLoading } from "./image-loading";
 import { checkInteractions } from "./interactions";
 import { checkProject } from "./project";
@@ -1061,6 +1062,14 @@ try {
       ).toBeHidden();
       await checkInteractions(page, name, await imagePayload(page));
       await checkGameArea(page, name, await imagePayload(page));
+      const hoverPage = await context.newPage();
+      try {
+        await hoverPage.goto(page.url());
+        hoverPage.on("dialog", (dialog) => void dialog.accept());
+        await checkHover(hoverPage);
+      } finally {
+        await hoverPage.close();
+      }
       const loadingPage = await context.newPage();
       try {
         await loadingPage.goto(page.url());

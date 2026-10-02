@@ -1,0 +1,293 @@
+{
+  "baselineCommit": "10d418a",
+  "before": {
+    "browser": "153.0.8010.12",
+    "platform": "win32",
+    "arch": "x64",
+    "cpu": "AMD Ryzen 7 9700X 8-Core Processor             ",
+    "viewport": [1440, 1000],
+    "deviceScaleFactor": 1,
+    "applicationNote": "Actual production app pointermove -> rAF -> hover -> Svelte. Three 120-move rounds, CDP TaskDuration/ScriptDuration/LayoutDuration divided by moves; includes test dispatch and Svelte work, not isolated hover time. No API instrumentation in timed rounds. Frame p95 is refresh-rate limited.",
+    "label": "before",
+    "note": "Direct hit-test calls on a stable rendered production DOM; no rAF wait or Svelte render time. 3 warmups, 5 rotating-order rounds, 3 point sweeps per round. API counts are collected separately, outside timing.",
+    "results": [
+      {
+        "pins": 24,
+        "measurements": 8,
+        "guides": 3,
+        "points": 176,
+        "millisecondsPerQuery": {
+          "reference": [
+            0.44337121210992336, 0.4005681818181818, 0.42613636363636365,
+            0.42594696970825846, 0.40662878785621037
+          ],
+          "shared": [
+            0.2638257575983351, 0.2534090909316684, 0.25, 0.2638257575983351,
+            0.2570075757349982
+          ],
+          "current": [
+            0.07291666666666667, 0.07746212116696617, 0.08314393940522816,
+            0.07405303029174154, 0.11685606063992689
+          ]
+        },
+        "callsPerQuery": {
+          "reference": {
+            "query": 75,
+            "rect": 36.81818181818182,
+            "ctm": 97.60227272727273,
+            "style": 97.60227272727273,
+            "fill": 1,
+            "stroke": 97.5909090909091
+          },
+          "shared": {
+            "query": 75,
+            "rect": 36.81818181818182,
+            "ctm": 1,
+            "style": 97.60227272727273,
+            "fill": 1,
+            "stroke": 97.5909090909091
+          },
+          "current": {
+            "query": 6.0397727272727275,
+            "rect": 75.69318181818181,
+            "ctm": 1,
+            "style": 5.238636363636363,
+            "fill": 0.028409090909090908,
+            "stroke": 5.2272727272727275
+          }
+        },
+        "applicationFrames": [
+          {
+            "taskMsPerMove": 1.6083749999999999,
+            "scriptMsPerMove": 0.150875,
+            "layoutMsPerMove": 0.015533333333333333,
+            "frameP95Ms": 17.700000017881393
+          },
+          {
+            "taskMsPerMove": 1.5181083333333332,
+            "scriptMsPerMove": 0.12650833333333336,
+            "layoutMsPerMove": 0.014158333333333335,
+            "frameP95Ms": 17.700000017881393
+          },
+          {
+            "taskMsPerMove": 1.7049999999999998,
+            "scriptMsPerMove": 0.1411916666666667,
+            "layoutMsPerMove": 0.01688333333333333,
+            "frameP95Ms": 17.599999994039536
+          }
+        ]
+      },
+      {
+        "pins": 240,
+        "measurements": 80,
+        "guides": 12,
+        "points": 176,
+        "millisecondsPerQuery": {
+          "reference": [
+            4.1755681817956045, 4.017613636386214, 4.0229166666553775,
+            4.788446969719547, 4.1164772727272725
+          ],
+          "shared": [
+            2.3541666666666665, 2.2780303030528803, 2.3445075757688647,
+            2.2848484848033297, 2.274242424265002
+          ],
+          "current": [
+            0.6270833333220446, 0.6943181818068931, 0.642424242401665,
+            0.7202651515377291, 0.6827651515151515
+          ]
+        },
+        "callsPerQuery": {
+          "reference": {
+            "query": 669,
+            "rect": 333.40909090909093,
+            "ctm": 907.6590909090909,
+            "style": 907.6590909090909,
+            "fill": 1,
+            "stroke": 907.6477272727273
+          },
+          "shared": {
+            "query": 669,
+            "rect": 333.40909090909093,
+            "ctm": 1,
+            "style": 907.6590909090909,
+            "fill": 1,
+            "stroke": 907.6477272727273
+          },
+          "current": {
+            "query": 35.66477272727273,
+            "rect": 695.7840909090909,
+            "ctm": 1,
+            "style": 36.42045454545455,
+            "fill": 0.028409090909090908,
+            "stroke": 36.40909090909091
+          }
+        },
+        "applicationFrames": [
+          {
+            "taskMsPerMove": 8.614741666666667,
+            "scriptMsPerMove": 0.4862,
+            "layoutMsPerMove": 0.04426666666666667,
+            "frameP95Ms": 19.099999994039536
+          },
+          {
+            "taskMsPerMove": 8.196325,
+            "scriptMsPerMove": 0.4331333333333333,
+            "layoutMsPerMove": 0.04637499999999999,
+            "frameP95Ms": 18.899999976158142
+          },
+          {
+            "taskMsPerMove": 7.9026000000000005,
+            "scriptMsPerMove": 0.39693333333333336,
+            "layoutMsPerMove": 0.04401666666666667,
+            "frameP95Ms": 18.799999982118607
+          }
+        ]
+      }
+    ]
+  },
+  "after": {
+    "browser": "153.0.8010.12",
+    "platform": "win32",
+    "arch": "x64",
+    "cpu": "AMD Ryzen 7 9700X 8-Core Processor             ",
+    "viewport": [1440, 1000],
+    "deviceScaleFactor": 1,
+    "applicationNote": "Actual production app pointermove -> rAF -> hover -> Svelte. Three 120-move rounds, CDP TaskDuration/ScriptDuration/LayoutDuration divided by moves; includes test dispatch and Svelte work, not isolated hover time. No API instrumentation in timed rounds. Frame p95 is refresh-rate limited.",
+    "label": "after",
+    "note": "Direct hit-test calls on a stable rendered production DOM; no rAF wait or Svelte render time. 3 warmups, 5 rotating-order rounds, 3 point sweeps per round. API counts are collected separately, outside timing.",
+    "results": [
+      {
+        "pins": 24,
+        "measurements": 8,
+        "guides": 3,
+        "points": 176,
+        "millisecondsPerQuery": {
+          "reference": [
+            0.4164772727385615, 0.38977272723886097, 0.41022727271598397,
+            0.4441287878787879, 0.40625
+          ],
+          "shared": [
+            0.24204545451158826, 0.2481060606060606, 0.2744318181931069,
+            0.24621212121212122, 0.23560606061734937
+          ],
+          "current": [
+            0.07045454548841174, 0.08068181817052943, 0.0744318182043957,
+            0.07196969696969698, 0.08712121212121213
+          ]
+        },
+        "callsPerQuery": {
+          "reference": {
+            "query": 75,
+            "rect": 36.81818181818182,
+            "ctm": 97.60227272727273,
+            "style": 97.60227272727273,
+            "fill": 1,
+            "stroke": 97.5909090909091
+          },
+          "shared": {
+            "query": 75,
+            "rect": 36.81818181818182,
+            "ctm": 1,
+            "style": 97.60227272727273,
+            "fill": 1,
+            "stroke": 97.5909090909091
+          },
+          "current": {
+            "query": 6.0397727272727275,
+            "rect": 75.69318181818181,
+            "ctm": 1,
+            "style": 5.238636363636363,
+            "fill": 0.028409090909090908,
+            "stroke": 5.2272727272727275
+          }
+        },
+        "applicationFrames": [
+          {
+            "taskMsPerMove": 1.2197416666666667,
+            "scriptMsPerMove": 0.15293333333333334,
+            "layoutMsPerMove": 0.01643333333333333,
+            "frameP95Ms": 18.19999998807907
+          },
+          {
+            "taskMsPerMove": 1.161966666666667,
+            "scriptMsPerMove": 0.14834166666666665,
+            "layoutMsPerMove": 0.015300000000000003,
+            "frameP95Ms": 17.900000005960464
+          },
+          {
+            "taskMsPerMove": 1.1567666666666665,
+            "scriptMsPerMove": 0.13415833333333335,
+            "layoutMsPerMove": 0.015416666666666664,
+            "frameP95Ms": 18
+          }
+        ]
+      },
+      {
+        "pins": 240,
+        "measurements": 80,
+        "guides": 12,
+        "points": 176,
+        "millisecondsPerQuery": {
+          "reference": [
+            4.684659090909091, 4.982196969742125, 4.778598484837196,
+            4.25037878785621, 4.161174242412954
+          ],
+          "shared": [
+            2.418371212132501, 2.601893939416517, 2.472537878787879,
+            2.464204545443257, 2.7452651515151514
+          ],
+          "current": [
+            0.6729166666328004, 0.692803030269164, 0.7073863636363636,
+            0.7785984848936399, 0.9047348484622709
+          ]
+        },
+        "callsPerQuery": {
+          "reference": {
+            "query": 669,
+            "rect": 333.40909090909093,
+            "ctm": 907.6590909090909,
+            "style": 907.6590909090909,
+            "fill": 1,
+            "stroke": 907.6477272727273
+          },
+          "shared": {
+            "query": 669,
+            "rect": 333.40909090909093,
+            "ctm": 1,
+            "style": 907.6590909090909,
+            "fill": 1,
+            "stroke": 907.6477272727273
+          },
+          "current": {
+            "query": 35.66477272727273,
+            "rect": 695.7840909090909,
+            "ctm": 1,
+            "style": 36.42045454545455,
+            "fill": 0.028409090909090908,
+            "stroke": 36.40909090909091
+          }
+        },
+        "applicationFrames": [
+          {
+            "taskMsPerMove": 4.095425,
+            "scriptMsPerMove": 0.43360000000000004,
+            "layoutMsPerMove": 0.043533333333333334,
+            "frameP95Ms": 18
+          },
+          {
+            "taskMsPerMove": 4.154683333333334,
+            "scriptMsPerMove": 0.42332500000000006,
+            "layoutMsPerMove": 0.044683333333333325,
+            "frameP95Ms": 18
+          },
+          {
+            "taskMsPerMove": 5.198991666666667,
+            "scriptMsPerMove": 0.5225833333333332,
+            "layoutMsPerMove": 0.05470833333333333,
+            "frameP95Ms": 18.5
+          }
+        ]
+      }
+    ]
+  }
+}

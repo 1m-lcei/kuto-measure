@@ -26,6 +26,7 @@ import {
   type Projection,
 } from "./geometry";
 import Header from "./Header.svelte";
+import { overlappingAnnotations } from "./hover";
 import { type LoadedImage, loadImage } from "./image";
 import { canvasLabelMeasure } from "./labels";
 import {
@@ -302,7 +303,7 @@ function hasEdits() {
 function updateHover() {
   if (!viewport || !overlay) return;
   let key: string | null = null;
-  const overlapped = new Set<string>();
+  let overlapped = new Set<string>();
   if (
     tool === "pin" &&
     hoverPoint &&
@@ -312,35 +313,10 @@ function updateHover() {
     !document.querySelector("dialog[open], :popover-open") &&
     inRect(pointAt(hoverPoint.x, hoverPoint.y), projection.renderArea)
   ) {
-    const point = new DOMPoint(hoverPoint.x, hoverPoint.y);
-    for (const node of overlay.querySelectorAll<SVGElement>("[data-key]")) {
-      for (const shape of node.querySelectorAll(
-        "path, circle, line, rect, text",
-      )) {
-        if (shape.matches(".hit, .line-hit, .label-hit")) continue;
-        let hit = false;
-        if (shape instanceof SVGGeometryElement) {
-          const matrix = shape.getScreenCTM();
-          if (!matrix) continue;
-          const local = point.matrixTransform(matrix.inverse());
-          const style = getComputedStyle(shape);
-          hit =
-            (style.fill !== "none" && shape.isPointInFill(local)) ||
-            (style.stroke !== "none" && shape.isPointInStroke(local));
-        } else if (shape instanceof SVGTextElement) {
-          const box = shape.getBoundingClientRect();
-          hit =
-            point.x >= box.left &&
-            point.x <= box.right &&
-            point.y >= box.top &&
-            point.y <= box.bottom;
-        }
-        if (hit && node.dataset.key) {
-          overlapped.add(node.dataset.key);
-          break;
-        }
-      }
-    }
+    overlapped = overlappingAnnotations(
+      overlay,
+      new DOMPoint(hoverPoint.x, hoverPoint.y),
+    );
   }
   if (
     tool === "select" &&

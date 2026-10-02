@@ -32,6 +32,8 @@ UIと状態別の文言は `src/*.svelte` で編集します。`index.html` は�
 
 性能計測はビルド後に `bun run test:performance` で実行します。生成画像・24ピン・8測距線を使用し、画像を外部送信しません。測定条件、移行前後の結果と残る制約は [Svelte移行の検証記録](svelte-migration.md) を参照してください。
 
+ピン配置時のホバー判定は `bun tests/hover-performance.ts` で別途測定します。設計、測定条件、生データ、再現手順は [ホバー判定の検証記録](hover-performance.md) を参照してください。
+
 ## 公開
 
 GitHubのリポジトリを接続し、Settings → Pages → Sourceを「GitHub Actions」に設定します。
