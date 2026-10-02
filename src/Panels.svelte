@@ -313,8 +313,10 @@ function submitArea(event: SubmitEvent) {
       size: projection.size,
       renderArea: projection.renderArea,
     })
-  )
+  ) {
+    areaDragEnabled = false;
     cancelArea();
+  }
 }
 function fullArea() {
   if (

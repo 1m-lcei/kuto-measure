@@ -218,6 +218,8 @@ export async function checkGameArea(
   await page.getByRole("button", { name: "適用", exact: true }).click();
   await waitSource("manual");
   assert.deepEqual(await clip(), draggedBounds);
+  await expect(dragOption).not.toBeChecked();
+  await expect(handles).toHaveCount(0);
   await page.locator("#undo").click();
   await waitSource("fallback");
   assert.deepEqual(await clip(), [0, 0, 1536, 709]);
@@ -227,6 +229,7 @@ export async function checkGameArea(
   await page.locator("#undo").click();
   await waitSource("fallback");
 
+  await dragOption.check();
   await page.locator("#zoom-in").click();
   await dragEdge(0, 25);
   await expect
