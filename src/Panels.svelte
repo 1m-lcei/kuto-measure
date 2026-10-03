@@ -426,13 +426,13 @@ function guideDetail(g: AnalysisDocument["guides"][number]) {
 }
 const scaleTitles = {
   unset: "相対距離で測定",
-  absolute: "ゲーム内の距離",
-  relative: "相対距離",
+  absolute: "基準距離で測定",
+  relative: "相対距離で測定",
   invalid: "投影を設定できません",
 };
 const scaleHints = {
   unset: "基準円なしでも測定できます。最初の測距線を1として比較します。",
-  absolute: "地面上の距離をゲーム内の数値で表示しています。",
+  absolute: "基準円に指定した半径をもとに、距離を表示しています。",
   relative: "先頭の測距線を1として、地面上の距離を表示しています。",
   invalid: "キャリブレーションの設定を確認してください。",
 };

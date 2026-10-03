@@ -12,7 +12,7 @@ export async function checkGameArea(
     buffer: Buffer;
   },
 ) {
-  const modes = page.getByRole("group", { name: "操作モード" });
+  const modes = page.locator(".tools");
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   const warning = page.locator("#area-warning").getByRole("status");
@@ -21,7 +21,7 @@ export async function checkGameArea(
       .locator("#game-area")
       .evaluate((node: HTMLDetailsElement) => node.open)),
   );
-  await page.getByLabel("画像を開く").setInputFiles(payload);
+  await page.locator("#file").setInputFiles(payload);
   const state = page.locator("#area-state");
   const waitSource = async (source: string) => {
     await expect(state).toHaveAttribute("data-source", source);
@@ -31,8 +31,8 @@ export async function checkGameArea(
     );
   };
   await waitSource("fallback");
-  const inputs = ["上（px）", "下（px）", "左（px）", "右（px）"].map((label) =>
-    page.getByLabel(label, { exact: true }),
+  const inputs = ["top", "bottom", "left", "right"].map((side) =>
+    page.locator(`#area-${side}`),
   );
   const fill = async (values: number[]) => {
     for (let i = 0; i < values.length; i++)
@@ -66,7 +66,7 @@ export async function checkGameArea(
       );
   const png = async () => {
     const pending = page.waitForEvent("download");
-    await page.getByRole("button", { name: /PNGを書き出す/ }).click();
+    await page.locator("#export").click();
     const path = await (await pending).path();
     assert(path);
     const bytes = await readFile(path);
@@ -76,7 +76,7 @@ export async function checkGameArea(
   };
 
   await page.locator("#edit-panel-button").click();
-  await modes.getByRole("button", { name: /ピン/ }).click();
+  await modes.locator('[data-tool="pin"]').click();
   await expect(page.locator("#area-warning")).toBeVisible();
   assert(
     !(await page
@@ -119,21 +119,21 @@ export async function checkGameArea(
     fullPage: true,
   });
   const initialBounds = await clip();
-  await page.getByRole("button", { name: /ゲーム領域を確認済み/ }).click();
+  await page.locator("#area-confirm").click();
   await page.locator("#area-warning").waitFor({ state: "hidden" });
   await expect(warning).toBeHidden();
   assert.equal(await state.getAttribute("data-confirmed"), "true");
   assert.deepEqual(await clip(), initialBounds);
-  await page.getByRole("button", { name: "元に戻す" }).click();
+  await page.locator("#undo").click();
   await page.locator("#area-warning").waitFor({ state: "visible" });
-  await page.getByRole("button", { name: "やり直す" }).click();
+  await page.locator("#redo").click();
   await page.locator("#area-warning").waitFor({ state: "hidden" });
   let confirmations = 0;
   const recordConfirmation = () => {
     confirmations++;
   };
   page.on("dialog", recordConfirmation);
-  await page.getByLabel("画像を開く").setInputFiles(payload);
+  await page.locator("#file").setInputFiles(payload);
   await page.locator("#area-warning").waitFor({ state: "visible" });
   page.off("dialog", recordConfirmation);
   assert.equal(
@@ -141,7 +141,7 @@ export async function checkGameArea(
     0,
     "Acknowledging an area alone must not prompt to discard edits",
   );
-  await page.getByRole("button", { name: "ゲーム領域を設定" }).click();
+  await page.locator("#area-open").click();
   assert(await page.locator("#reference-panel").isVisible());
   assert(
     await page
@@ -153,14 +153,12 @@ export async function checkGameArea(
   await inputs[0].fill("40");
   await page.locator("#game-area > summary").click();
   await page.locator(".area-preview").waitFor({ state: "detached" });
-  await page.getByRole("button", { name: "ゲーム領域を設定" }).click();
+  await page.locator("#area-open").click();
   await expect(inputs[0]).toHaveValue("0");
   await expect(inputs[0]).toBeFocused();
   // Edge drags share the numeric draft, without changing projection or history.
   const handles = page.locator(".area-handle");
-  const dragOption = page.getByRole("checkbox", {
-    name: "バーをドラッグして調整",
-  });
+  const dragOption = page.locator("#area-drag");
   await expect(dragOption).not.toBeChecked();
   await expect(handles).toHaveCount(0);
   await dragOption.check();
@@ -215,7 +213,7 @@ export async function checkGameArea(
     path: `test-results/${engine}-game-area-drag.png`,
     fullPage: true,
   });
-  await page.getByRole("button", { name: "適用", exact: true }).click();
+  await page.locator("#area-apply").click();
   await waitSource("manual");
   assert.deepEqual(await clip(), draggedBounds);
   await expect(dragOption).not.toBeChecked();
@@ -254,7 +252,7 @@ export async function checkGameArea(
   await expect(inputs[0]).toHaveValue("0");
   await expect(page.locator(".area-preview")).toHaveCount(0);
   await expect(handles).toHaveCount(0);
-  await page.getByRole("button", { name: "ゲーム領域を設定" }).click();
+  await page.locator("#area-open").click();
   await expect(handles).toHaveCount(4);
   await dragOption.uncheck();
   await expect(handles).toHaveCount(0);
@@ -282,19 +280,19 @@ export async function checkGameArea(
   assert.deepEqual(await clip(), [0, 0, 1536, 709]);
   for (const invalid of ["", "-1", "0.5"]) {
     await inputs[0].fill(invalid);
-    await page.getByRole("button", { name: "適用", exact: true }).click();
+    await page.locator("#area-apply").click();
     await expect(page.locator("#game-area").getByRole("alert")).toBeVisible();
     await expect(page.locator("#game-area").getByRole("alert")).not.toBeEmpty();
     assert.equal(await state.getAttribute("data-source"), "fallback");
   }
   await fill([400, 400, 0, 0]);
-  await page.getByRole("button", { name: "適用", exact: true }).click();
+  await page.locator("#area-apply").click();
   await expect(inputs[1]).toBeFocused();
   await fill([0, 0, 800, 800]);
-  await page.getByRole("button", { name: "適用", exact: true }).click();
+  await page.locator("#area-apply").click();
   await expect(inputs[3]).toBeFocused();
   assert.deepEqual(await clip(), [0, 0, 1536, 709]);
-  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await page.locator("#area-cancel").click();
   await page.locator(".area-preview").waitFor({ state: "detached" });
   await inputs[0].fill("40");
   await inputs[0].press("Escape");
@@ -302,32 +300,28 @@ export async function checkGameArea(
   await inputs[0].fill("40");
   await page.locator("#edit-panel-button").click();
   await page.locator(".area-preview").waitFor({ state: "detached" });
-  await page.getByRole("button", { name: "ゲーム領域を設定" }).click();
-  await page.getByRole("button", { name: "画面全体を適用" }).click();
+  await page.locator("#area-open").click();
+  await page.locator("#area-full").click();
   await waitSource("full");
   await expect(page.locator("#area-warning")).toBeHidden();
   assert.deepEqual(await clip(), [0, 0, 1536, 709]);
   await expect(state).toHaveAttribute("data-confirmed", "true");
-  await page.getByRole("button", { name: "元に戻す" }).click();
+  await page.locator("#undo").click();
   await waitSource("fallback");
 
   // Make real annotations before changing the projection area.
-  await modes.getByRole("button", { name: /ピン/ }).click();
+  await modes.locator('[data-tool="pin"]').click();
   await clickImage(600, 300);
   await clickImage(900, 500);
-  await page
-    .getByRole("combobox", { name: "始点", exact: true })
-    .selectOption({ index: 1 });
-  await page
-    .getByRole("combobox", { name: "終点", exact: true })
-    .selectOption({ index: 2 });
-  await page.getByRole("button", { name: "測距線を追加" }).click();
-  await modes.getByRole("button", { name: /基準円/ }).click();
+  await page.locator("#measure-from").selectOption({ index: 1 });
+  await page.locator("#measure-to").selectOption({ index: 2 });
+  await page.locator("#add-measure").click();
+  await modes.locator('[data-tool="reference"]').click();
   await clickImage(740, 400);
   await clickImage(800, 400);
-  await page.getByLabel("設定後に測定・編集へ戻る").uncheck();
-  await page.getByLabel("基準円の半径").fill("500");
-  await page.getByLabel("基準円の半径").press("Tab");
+  await page.locator("#close-reference-panel").uncheck();
+  await page.locator("#reference-radius").fill("500");
+  await page.locator("#reference-radius").press("Tab");
   const positions = await pinPositions();
   assert.equal(positions.length, 2);
   const distance = page.locator(
@@ -342,7 +336,7 @@ export async function checkGameArea(
     "Draft must not affect exported pixels",
   );
   assert.equal(await distance.textContent(), beforeDistance);
-  await page.getByRole("button", { name: "適用", exact: true }).click();
+  await page.locator("#area-apply").click();
   await waitSource("manual");
   assert.deepEqual(await clip(), [20, 60, 1486, 559]);
   await expect(state).toHaveAttribute("data-confirmed", "true");
@@ -359,11 +353,11 @@ export async function checkGameArea(
     "Applied projection must affect export",
   );
   await page.locator(".area-preview").waitFor({ state: "detached" });
-  await page.getByRole("button", { name: "元に戻す" }).click();
+  await page.locator("#undo").click();
   await waitSource("fallback");
   assert.equal(await distance.textContent(), beforeDistance);
   assert(originalPng.equals(await png()));
-  await page.getByRole("button", { name: "やり直す" }).click();
+  await page.locator("#redo").click();
   await waitSource("manual");
   await expect(inputs[0]).toHaveValue("60");
   assert(appliedPng.equals(await png()));
@@ -373,37 +367,33 @@ export async function checkGameArea(
     "61",
   );
   await expect(page.locator(".excluded-boundary")).toHaveCount(0);
-  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await page.locator("#area-cancel").click();
   await expect(page.locator(".area-preview")).toHaveCount(0);
   await expect(page.locator(".excluded-boundary")).toHaveCount(1);
   await expect(inputs[0]).toHaveValue("60");
   await inputs[0].fill("61");
-  await page.getByRole("button", { name: "元に戻す" }).click();
+  await page.locator("#undo").click();
   await waitSource("fallback");
   await expect(inputs[0]).toHaveValue("0");
   await page.locator(".area-preview").waitFor({ state: "detached" });
-  await page.getByRole("button", { name: "やり直す" }).click();
+  await page.locator("#redo").click();
 
   await page.locator("#saved-reference-options > summary").click();
-  await page.getByRole("button", { name: /現在の基準/ }).click();
-  await expect(
-    page
-      .getByRole("region", { name: "ブラウザに保存した基準" })
-      .getByRole("alert"),
-  ).toBeEmpty();
+  await page.locator("#save-reference").click();
+  await expect(page.locator("#saved-reference-error")).toBeEmpty();
   const saved = await page.evaluate(() =>
     localStorage.getItem("kuto-measure.reference-preset"),
   );
   assert(saved && !Object.hasOwn(JSON.parse(saved), "renderArea"));
   await page.locator(".reference-reset > summary").click();
-  await page.getByRole("button", { name: /この画像の基準をリセット/ }).click();
+  await page.locator("#reset-reference").click();
   assert.equal(await state.getAttribute("data-source"), "manual");
   assert.deepEqual(await clip(), [20, 60, 1486, 559]);
-  await page.getByRole("button", { name: "元に戻す" }).click();
-  await page.getByRole("button", { name: "自動検出を適用" }).click();
+  await page.locator("#undo").click();
+  await page.locator("#area-auto").click();
   await waitSource("fallback");
   await expect(page.locator("#area-warning")).toBeHidden();
-  await page.getByRole("button", { name: "元に戻す" }).click();
+  await page.locator("#undo").click();
   await waitSource("manual");
 
   for (const width of [1440, 390, 320]) {
@@ -415,18 +405,18 @@ export async function checkGameArea(
     fullPage: true,
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.getByRole("button", { name: /テーマ/ }).click();
+  await page.locator("#theme-toggle").click();
   await page.screenshot({
     path: `test-results/${engine}-game-area-dark.png`,
     fullPage: true,
   });
-  await page.getByRole("button", { name: /テーマ/ }).click();
+  await page.locator("#theme-toggle").click();
   await inputs[0].fill("61");
-  await page.getByLabel("画像を開く").setInputFiles(payload);
+  await page.locator("#file").setInputFiles(payload);
   await waitSource("fallback");
   await expect(inputs[0]).toHaveValue("0");
   await page.locator(".area-preview").waitFor({ state: "detached" });
-  await expect(page.getByLabel("基準円の半径")).toHaveValue("500");
+  await expect(page.locator("#reference-radius")).toHaveValue("500");
   assert.equal(
     await page.evaluate(() =>
       localStorage.getItem("kuto-measure.reference-preset"),
@@ -457,7 +447,7 @@ export async function checkGameArea(
     ctx.fill();
     return canvas.toDataURL("image/png").split(",")[1];
   });
-  await page.getByLabel("画像を開く").setInputFiles({
+  await page.locator("#file").setInputFiles({
     name: "cursor-band.png",
     mimeType: "image/png",
     buffer: Buffer.from(encoded, "base64"),
@@ -472,12 +462,12 @@ export async function checkGameArea(
     Math.abs(detected[1] - 189) <= 3 &&
       Math.abs(detected[1] + detected[3] - 891) <= 3,
   );
-  await page.getByRole("button", { name: /ゲーム領域を確認済み/ }).click();
+  await page.locator("#area-confirm").click();
   await page.locator("#area-warning").waitFor({ state: "hidden" });
   assert.deepEqual(await clip(), detected);
-  await page.getByRole("button", { name: "画面全体を適用" }).click();
+  await page.locator("#area-full").click();
   await waitSource("full");
-  await page.getByRole("button", { name: "自動検出を適用" }).click();
+  await page.locator("#area-auto").click();
   await waitSource("auto");
   await expect(page.locator("#area-warning")).toBeHidden();
   assert.deepEqual(await clip(), detected);

@@ -392,8 +392,8 @@ export async function checkTouch(
   // Area bars use the same capture/cancellation path as annotation drags.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator("#fit").click();
-  await page.getByRole("button", { name: "ゲーム領域を設定" }).click();
-  await page.getByRole("checkbox", { name: "バーをドラッグして調整" }).check();
+  await page.locator("#area-open").click();
+  await page.locator("#area-drag").check();
   await page.locator("#viewport").scrollIntoViewIfNeeded();
   const areaTop = page.locator("#area-top");
   for (const ending of ["release", "cancel", "capture", "second-finger"]) {

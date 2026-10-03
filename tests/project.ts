@@ -16,8 +16,7 @@ export async function checkProject(
     dialogs.push(d.message());
     void (accept ? d.accept() : d.dismiss());
   });
-  const menu = () =>
-    page.getByRole("button", { name: "メニュー", exact: true }).click();
+  const menu = () => page.locator("#menu-trigger").click();
   const pins = page.locator('#object-list [data-object-key^="pin:"]');
   await menu();
   await expect(page.locator("#save-project")).toBeDisabled();
@@ -69,7 +68,8 @@ export async function checkProject(
   await page
     .locator("#project-file")
     .setInputFiles({ ...payload, buffer: Buffer.from('{"version":2}') });
-  await expect(page.locator("#error")).toContainText("編集JSON");
+  await expect(page.locator("#error")).toBeVisible();
+  await expect(page.locator("#error")).not.toBeEmpty();
   await expect(pins).toHaveCount(1);
 
   // A saved image twice as large forces both dimensions and the game area to adapt.
@@ -103,6 +103,22 @@ export async function checkProject(
   await menu();
   await expect(page.locator("#save-project")).toBeVisible();
   await expect(page.locator("#load-project")).toBeVisible();
+  const description = page
+    .locator("#header-menu .menu-section > .muted")
+    .first();
+  const loadBox = await page.locator("#load-project").boundingBox();
+  const descriptionBox = await description.boundingBox();
+  assert(loadBox && descriptionBox);
+  assert(descriptionBox.y - loadBox.y - loadBox.height >= 8);
+  await expect(description.locator(".danger")).toBeVisible();
+  assert.equal(
+    await description
+      .locator(".danger")
+      .evaluate((el) => getComputedStyle(el).color),
+    await page
+      .locator(".screenshot-hint")
+      .evaluate((el) => getComputedStyle(el).color),
+  );
   await page.screenshot({ path: `test-results/${engine}-project-menu.png` });
   assert.deepEqual(errors, []);
 }

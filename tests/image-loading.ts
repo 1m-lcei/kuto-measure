@@ -30,7 +30,7 @@ export async function checkImageLoading(
   const pins = page.locator('#object-list [data-object-key^="pin:"]');
   const idle = () => expect(viewport).toHaveAttribute("aria-busy", "false");
   const snapshot = async () => {
-    await page.getByRole("button", { name: "メニュー", exact: true }).click();
+    await page.locator("#menu-trigger").click();
     const pending = page.waitForEvent("download");
     await page.locator("#save-project").click();
     const path = await (await pending).path();

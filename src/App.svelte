@@ -102,7 +102,7 @@ const projection = $derived.by((): Projection | null => {
   }
 });
 let selection = $state.raw<Selection | null>(null),
-  tool = $state<Tool>("select"),
+  tool = $state<Tool>("pin"),
   drag = $state.raw<Drag | null>(null),
   space = $state(false);
 let preview = $state.raw<AnalysisDocument | null>(null);
@@ -852,7 +852,7 @@ async function openFiles(files: FileList | File[]) {
     referenceStart = null;
     measureStart = null;
     cursor = null;
-    tool = "select";
+    tool = "pin";
     view.setImage(next);
     if (previous) URL.revokeObjectURL(previous.url);
     status(
@@ -1163,7 +1163,7 @@ const saveProject = () => {
     );
     header.closeMenu();
     showError("");
-    status("編集JSONのダウンロードを開始しました。");
+    status("編集データのダウンロードを開始しました。");
   } catch (e) {
     showError(e);
   }
@@ -1200,7 +1200,7 @@ const loadProject = async (
       !mismatch &&
       hasEdits() &&
       !window.confirm(
-        "現在の編集内容をJSONの内容に置き換えますか？（元に戻すことができます）",
+        "現在の編集内容を読み込むデータで置き換えますか？（元に戻すことができます）",
       )
     )
       return;
@@ -1218,7 +1218,7 @@ const loadProject = async (
     header.closeMenu();
     showError("");
     status(
-      "編集JSONを読み込みました。位置とゲーム領域を確認してください。元に戻すこともできます。",
+      "編集データを読み込みました。位置とゲーム領域を確認してください。元に戻すこともできます。",
     );
   } catch (e) {
     if (

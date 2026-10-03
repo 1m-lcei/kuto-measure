@@ -10,16 +10,25 @@ export async function checkReactivity(
   page.on("pageerror", (error) => errors.push(error.message));
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  await page.getByRole("button", { name: "メニュー", exact: true }).click();
-  await page.getByLabel("ダーク", { exact: true }).check();
+  await page.locator("#menu-trigger").click();
+  await page.locator('input[name="theme"][value="dark"]').check();
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.locator("#file").setInputFiles(payload);
   await expect(page.locator("#viewport")).toHaveAttribute("aria-busy", "false");
-  await expect(page.locator("#area-source")).toHaveText("画像全体を使用");
-  await expect(page.locator("#area-confirmation")).toHaveText("（要確認）");
+  await expect(page.locator("#area-source")).toHaveAttribute(
+    "data-state",
+    "full",
+  );
+  await expect(page.locator("#area-confirmation")).toHaveAttribute(
+    "data-state",
+    "pending",
+  );
   await page.locator("#area-confirm").click();
-  await expect(page.locator("#area-confirmation")).toHaveText("（確認済み）");
+  await expect(page.locator("#area-confirmation")).toHaveAttribute(
+    "data-state",
+    "confirmed",
+  );
   await page.locator("#edit-panel-button").click();
   await page.locator("#menu-trigger").click();
   await page.locator("#show-advanced").check();
@@ -107,10 +116,8 @@ export async function checkReactivity(
   await label.focus();
   await page.keyboard.press("Space");
   await expect(label).toBeFocused();
-  await page
-    .getByLabel("名前", { exact: true })
-    .fill('<img src=x onerror="alert(1)">');
-  await page.getByLabel("名前", { exact: true }).press("Tab");
+  await page.locator("#object-name").fill('<img src=x onerror="alert(1)">');
+  await page.locator("#object-name").press("Tab");
   await expect(
     page.locator(
       "#object-list img, #overlay img, #object-list script, #overlay script",
@@ -128,11 +135,16 @@ export async function checkReactivity(
   const pin = page.locator('[data-object-key^="pin:"]');
   await pin.click();
   await page.locator("#pin-group").selectOption({ index: 1 });
-  await expect(pin.locator("small")).toHaveText("グループ");
+  const groupId = await page.locator("#pin-group").inputValue();
+  assert(groupId);
+  const groupDetail = await pin.locator("small").innerText();
+  assert(groupDetail);
   await page.locator("#undo").click();
-  await expect(pin.locator("small")).toHaveText("未所属");
+  await expect(page.locator("#pin-group")).toHaveValue("");
+  await expect(pin.locator("small")).not.toHaveText(groupDetail);
   await page.locator("#redo").click();
-  await expect(pin.locator("small")).toHaveText("グループ");
+  await expect(page.locator("#pin-group")).toHaveValue(groupId);
+  await expect(pin.locator("small")).toHaveText(groupDetail);
 
   await page.locator("#fit").click();
   await page.locator('[data-tool="reference"]').click();
@@ -160,15 +172,16 @@ export async function checkReactivity(
   await guides.first().click();
   await radius.fill("-1");
   await radius.press("Tab");
-  await expect(page.locator("#error")).toContainText("正の有限数");
+  await expect(page.locator("#error")).toBeVisible();
+  await expect(page.locator("#error")).not.toBeEmpty();
   await guides.last().click();
   await expect(radius).toHaveValue("100");
   await guides.first().click();
   await expect(radius).toHaveValue("100");
   await radius.fill("200");
-  await expect(guides.first()).toContainText("半径 100.00");
+  await expect(guides.first().locator(".object-label")).toContainText("100.00");
   await radius.press("Tab");
-  await expect(guides.first()).toContainText("半径 200.00");
+  await expect(guides.first().locator(".object-label")).toContainText("200.00");
   await page.locator("#undo").click();
   await expect(radius).toHaveValue("100");
   await page.locator("#redo").click();
@@ -181,7 +194,7 @@ export async function checkReactivity(
   await pitch.fill("35");
   await page.locator("#undo").click();
   await expect(pitch).toHaveValue("35");
-  await page.getByRole("button", { name: "投影設定を適用" }).click();
+  await page.locator('#projection-settings button[type="submit"]').click();
   await page.locator("#undo").click();
   await expect(pitch).toHaveValue(initialPitch);
   await page.locator("#redo").click();

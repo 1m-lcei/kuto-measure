@@ -298,7 +298,7 @@
   .brand strong {
     font-weight: 750;
   }
-  .alpha-label {
+  .release-label {
     font-size: 1rem;
     font-weight: 650;
     color: var(--accent);
@@ -621,6 +621,21 @@
   dialog h3 {
     font-size: 14px;
     margin-top: 20px;
+  }
+  #help-details {
+    margin-block-start: 20px;
+    padding-block-start: 12px;
+    border-block-start: 1px solid var(--border);
+  }
+  #help-details > summary {
+    padding-block: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  #help-details h3 {
+    font-size: 12px;
+    margin: 16px 0 8px;
   }
   .help-steps {
     padding-left: 23px;
@@ -1136,6 +1151,9 @@
   .theme-settings legend,
   .menu-section > .muted {
     padding-inline: 12px;
+  }
+  .menu-section > .muted {
+    margin-block-start: 8px;
   }
   .theme-options {
     display: grid;
