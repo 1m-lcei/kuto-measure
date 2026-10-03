@@ -1382,9 +1382,9 @@ onMount(() => {
           aria-pressed={tool === value}
           disabled={!projection || (value === "guide" && !scale)}
           onclick={() => {
-  setTool(value);
-  viewport.focus({ preventScroll: true });
-}}
+            setTool(value);
+            viewport.focus({ preventScroll: true });
+          }}
         >
           <span>{symbol}</span>{label}
         </button>
@@ -1435,20 +1435,20 @@ onMount(() => {
         onpointerleave={clearHover}
         onlostpointercapture={onLostCapture}
         onauxclick={(event) => {
-  if (event.button === 1) event.preventDefault();
-}}
+          if (event.button === 1) event.preventDefault();
+        }}
         ondragover={(event) => {
-  event.preventDefault();
-  dropOver = true;
-}}
+          event.preventDefault();
+          dropOver = true;
+        }}
         ondragleave={() => {
-  dropOver = false;
-}}
+          dropOver = false;
+        }}
         ondrop={(event) => {
-  event.preventDefault();
-  dropOver = false;
-  if (event.dataTransfer) void openFiles(event.dataTransfer.files);
-}}
+          event.preventDefault();
+          dropOver = false;
+          if (event.dataTransfer) void openFiles(event.dataTransfer.files);
+        }}
       >
         <div id="empty" hidden={!!resource}>
           <div class="empty-intro">
@@ -1489,7 +1489,9 @@ onMount(() => {
             xmlns="http://www.w3.org/2000/svg"
             aria-label="オブジェクト"
             bind:this={overlay}
-            viewBox={resource ? `0 0 ${resource.width} ${resource.height}` : undefined}
+            viewBox={resource
+              ? `0 0 ${resource.width} ${resource.height}`
+              : undefined}
             style:--hover-inner={`${1 / view.display.zoom}px`}
             style:--hover-outer={`${2 / view.display.zoom}px`}
             onfocusin={onFocusIn}
@@ -1507,7 +1509,9 @@ onMount(() => {
                 visible={view.visible()}
                 {measureLabel}
                 {cursor}
-                referenceStart={referenceStart ? groundToImage(referenceStart, projection) : null}
+                referenceStart={referenceStart
+                  ? groundToImage(referenceStart, projection)
+                  : null}
                 {areaPreview}
                 {candidate}
                 overlapped={overlapKeys}
@@ -1550,8 +1554,10 @@ onMount(() => {
                   />
                   <rect
                     class="visual"
-                    x={(x1 + x2) / 2 - (horizontal ? 24 : 3) / view.display.zoom}
-                    y={(y1 + y2) / 2 - (horizontal ? 3 : 24) / view.display.zoom}
+                    x={(x1 + x2) / 2 -
+                      (horizontal ? 24 : 3) / view.display.zoom}
+                    y={(y1 + y2) / 2 -
+                      (horizontal ? 3 : 24) / view.display.zoom}
                     width={(horizontal ? 48 : 6) / view.display.zoom}
                     height={(horizontal ? 6 : 48) / view.display.zoom}
                     rx={3 / view.display.zoom}
@@ -1571,7 +1577,9 @@ onMount(() => {
         <div class="image-metadata">
           <div class="image-info">
             <span id="image-size"
-              >{resource ? `画像 ${resource.width} × ${resource.height} px` : "画像未選択"}</span
+              >{resource
+                ? `画像 ${resource.width} × ${resource.height} px`
+                : "画像未選択"}</span
             >
             <span
               id="game-size"
@@ -1599,9 +1607,9 @@ onMount(() => {
               disabled={loading}
               aria-label="問題なし：ゲーム領域を確認済みにする"
               onclick={() => {
-  if (editDocument({ type: "confirm-area" }))
-    viewport.focus({ preventScroll: true });
-}}
+                if (editDocument({ type: "confirm-area" }))
+                  viewport.focus({ preventScroll: true });
+              }}
             >
               <svg aria-hidden="true" width="14" height="14">
                 <use href={`${import.meta.env.BASE_URL}icons.svg#check`} />
@@ -1628,8 +1636,8 @@ onMount(() => {
             title="全体表示"
             disabled={!resource}
             onclick={() => {
-  if (!drag) view.fit();
-}}
+              if (!drag) view.fit();
+            }}
           >
             <svg aria-hidden="true">
               <use href={`${import.meta.env.BASE_URL}icons.svg#fit`} />
@@ -1640,9 +1648,9 @@ onMount(() => {
             type="button"
             disabled={!resource}
             onclick={() => {
-  view.zoom(1);
-  view.flush();
-}}
+              view.zoom(1);
+              view.flush();
+            }}
           >
             100%
           </button>
@@ -1653,14 +1661,16 @@ onMount(() => {
             aria-label="縮小"
             disabled={!resource}
             onclick={() => {
-  view.zoom(view.state.zoom / 1.1);
-  view.flush();
-}}
+              view.zoom(view.state.zoom / 1.1);
+              view.flush();
+            }}
           >
             −
           </button>
           <output id="zoom"
-            >{resource ? `${Number((view.display.zoom * 100).toFixed(1))}%` : "—"}</output
+            >{resource
+              ? `${Number((view.display.zoom * 100).toFixed(1))}%`
+              : "—"}</output
           >
           <button
             id="zoom-in"
@@ -1669,9 +1679,9 @@ onMount(() => {
             aria-label="拡大"
             disabled={!resource}
             onclick={() => {
-  view.zoom(view.state.zoom * 1.1);
-  view.flush();
-}}
+              view.zoom(view.state.zoom * 1.1);
+              view.flush();
+            }}
           >
             ＋
           </button>
@@ -1693,16 +1703,16 @@ onMount(() => {
       error={showError}
       measure={addMeasurement}
       previewArea={(bounds) => {
-  areaPreview = bounds;
-}}
+        areaPreview = bounds;
+      }}
       {automaticArea}
       {saveReference}
       {deleteSavedReference}
       {resetReference}
       startTool={(next) => {
-  setTool(next);
-  viewport.focus({ preventScroll: true });
-}}
+        setTool(next);
+        viewport.focus({ preventScroll: true });
+      }}
       bind:advanced
       bind:referenceOpen
       bind:dragArea
@@ -1719,9 +1729,9 @@ onMount(() => {
   bind:open={guideOpen}
   ontoggle={clearHover}
   onclose={() => {
-  pendingGuide = null;
-  viewport.focus({ preventScroll: true });
-}}
+    pendingGuide = null;
+    viewport.focus({ preventScroll: true });
+  }}
 >
   <form id="guide-form" onsubmit={onGuideSubmit}>
     <div class="dialog-heading">

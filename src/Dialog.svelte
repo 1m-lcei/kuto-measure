@@ -42,26 +42,26 @@ function outside(event: MouseEvent) {
   closedby="any"
   {ontoggle}
   onbeforetoggle={(event) => {
-  if (event.newState === "closed") open = false;
-}}
+    if (event.newState === "closed") open = false;
+  }}
   onclose={() => {
-  if (!dialog.open) {
-    open = false;
-    onclose();
-  }
-}}
+    if (!dialog.open) {
+      open = false;
+      onclose();
+    }
+  }}
   onpointerdown={(event) => {
-  startedOutside = outside(event);
-}}
+    startedOutside = outside(event);
+  }}
   onclick={(event) => {
-  if (
-    !("closedBy" in HTMLDialogElement.prototype) &&
-    startedOutside &&
-    outside(event)
-  )
-    open = false;
-  startedOutside = false;
-}}
+    if (
+      !("closedBy" in HTMLDialogElement.prototype) &&
+      startedOutside &&
+      outside(event)
+    )
+      open = false;
+    startedOutside = false;
+  }}
 >
   {@render children()}
 </dialog>

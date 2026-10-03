@@ -1,8 +1,7 @@
 # 開発・検証・公開
 
-Bun 1.4.2、Svelte 5、TypeScript、Viteを使用します。SvelteKitは使用しません。
-実行時の追加依存はSvelteだけです。型検査には公式の `svelte-check` を使います。
-現在の `svelte-check` がTypeScript 7単体に対応していないため、対応版のTypeScript 6を使用します。
+Bun 1.4.2、Svelte 5、TypeScript 6、Viteを使用します。実行時の依存はSvelteだけです。
+型検査は `svelte-check` と `tsc`、TypeScriptの指定範囲は `^6.0.3` です。依存更新には `bun update` を使用します。
 
 ```sh
 bun install --frozen-lockfile

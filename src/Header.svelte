@@ -80,7 +80,9 @@ export function closeMenu() {
   ></svelte:head
 >
 <header id="header" class="header" bind:this={headerNode}>
-  {#each narrow.current ? ["icons", "brand", "actions"] : ["brand", "actions", "icons"] as section (section)}
+  {#each narrow.current
+    ? ["icons", "brand", "actions"]
+    : ["brand", "actions", "icons"] as section (section)}
     {#if section === "icons"}
       {@render icons()}
     {:else if section === "brand"}
@@ -103,10 +105,10 @@ export function closeMenu() {
           <input
             id="file"
             onchange={(event) => {
-  const input = event.currentTarget;
-  if (input.files) void openFiles(input.files);
-  input.value = "";
-}}
+              const input = event.currentTarget;
+              if (input.files) void openFiles(input.files);
+              input.value = "";
+            }}
             type="file"
             accept="image/png,image/jpeg,image/webp"
           >
@@ -131,8 +133,8 @@ export function closeMenu() {
       class="icon-button"
       type="button"
       onclick={() => {
-  helpOpen = true;
-}}
+        helpOpen = true;
+      }}
       aria-label="使い方"
       title="使い方"
       aria-haspopup="dialog"
@@ -211,19 +213,19 @@ export function closeMenu() {
         <legend>テーマ</legend>
         <div class="theme-options">
           {#each [
-   ["system", "システム"],
-   ["light", "ライト"],
-   ["dark", "ダーク"],
- ] as [value, label] (value)}
+            ["system", "システム"],
+            ["light", "ライト"],
+            ["dark", "ダーク"],
+          ] as [value, label] (value)}
             <label>
               <input
                 type="radio"
                 name="theme"
                 bind:group={theme}
                 onchange={(event) => {
-  theme = event.currentTarget.value;
-  saveTheme();
-}}
+                  theme = event.currentTarget.value;
+                  saveTheme();
+                }}
                 {value}
               >
               {label}
@@ -238,8 +240,8 @@ export function closeMenu() {
             id="show-advanced"
             bind:checked={advanced}
             onchange={(event) => {
-  if (event.currentTarget.checked) referenceOpen = true;
-}}
+              if (event.currentTarget.checked) referenceOpen = true;
+            }}
             type="checkbox"
             aria-controls="projection-settings"
           >
@@ -250,9 +252,9 @@ export function closeMenu() {
         class="menu-item"
         type="button"
         onclick={() => {
-  menu.hidePopover();
-  aboutOpen = true;
-}}
+          menu.hidePopover();
+          aboutOpen = true;
+        }}
         aria-haspopup="dialog"
       >
         このアプリについて

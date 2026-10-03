@@ -468,9 +468,9 @@ const selectionTitles = {
     data-object-key={selectionKey(s)}
     aria-pressed={!!selection && selectionKey(selection) === selectionKey(s)}
     onclick={(event) => {
-  event.currentTarget.focus({ preventScroll: true });
-  select(s);
-}}
+      event.currentTarget.focus({ preventScroll: true });
+      select(s);
+    }}
   >
     <span class="badge">{symbol}</span
     ><span class="object-label">{title}<small>{detail}</small></span
@@ -487,8 +487,8 @@ const selectionTitles = {
       aria-pressed={!referenceOpen}
       aria-controls="analysis-panel"
       onclick={() => {
-  referenceOpen = false;
-}}
+        referenceOpen = false;
+      }}
     >
       測定・編集
     </button>
@@ -498,8 +498,8 @@ const selectionTitles = {
       aria-pressed={referenceOpen}
       aria-controls="reference-panel"
       onclick={() => {
-  referenceOpen = true;
-}}
+        referenceOpen = true;
+      }}
     >
       画像・基準
     </button>
@@ -528,8 +528,8 @@ const selectionTitles = {
             class="danger"
             type="button"
             onclick={() => {
-  if (selection) edit({ type: "delete", target: selection });
-}}
+              if (selection) edit({ type: "delete", target: selection });
+            }}
           >
             削除
           </button>
@@ -557,12 +557,15 @@ const selectionTitles = {
             id="pin-group"
             value={selectedPin?.groupId ?? ""}
             onchange={(event) => {
-  if (selectedPin)
-    edit({
-      type: "pin",
-      value: { ...selectedPin, groupId: event.currentTarget.value || null },
-    });
-}}
+              if (selectedPin)
+                edit({
+                  type: "pin",
+                  value: {
+                    ...selectedPin,
+                    groupId: event.currentTarget.value || null,
+                  },
+                });
+            }}
           >
             <option value="">未所属</option>
             {#each doc.groups as group (group.id)}
@@ -579,13 +582,16 @@ const selectionTitles = {
             step="any"
             bind:value={guideRadius}
             onchange={(event) =>
-  safely(() => {
-    if (selectedGuide)
-      edit({
-        type: "guide",
-        value: { ...selectedGuide, radiusGame: numeric(event.currentTarget) },
-      });
-  })}
+              safely(() => {
+                if (selectedGuide)
+                  edit({
+                    type: "guide",
+                    value: {
+                      ...selectedGuide,
+                      radiusGame: numeric(event.currentTarget),
+                    },
+                  });
+              })}
           >
         </label>
         <button
@@ -712,27 +718,28 @@ const selectionTitles = {
           {/if}
           {#each doc.measurements as m (m.id)}
             {@render row(
-  { kind: "measurement", id: m.id },
-  endpointName(doc, m.from) + " → " + endpointName(doc, m.to),
-  measurementValue(m),
-  "↔",
-  !doc.reference?.radiusGame && m === doc.measurements[0]
-    ? "測距線 · 基準"
-    : "測距線",
-)}
+              { kind: "measurement", id: m.id },
+              endpointName(doc, m.from) + " → " + endpointName(doc, m.to),
+              measurementValue(m),
+              "↔",
+              !doc.reference?.radiusGame && m === doc.measurements[0]
+                ? "測距線 · 基準"
+                : "測距線",
+            )}
           {/each}
           {#if doc.pins.length}
             <h3 class="object-heading">ピン <span>{doc.pins.length}</span></h3>
           {/if}
           {#each doc.pins as pin (pin.id)}
             {@render row(
-  { kind: "pin", id: pin.id },
-  pin.name || "ピン",
-  (doc.groups.find((g) => g.id === pin.groupId)?.name ?? "未所属") ||
-    "グループ",
-  "•",
-  "ピン",
-)}
+              { kind: "pin", id: pin.id },
+              pin.name || "ピン",
+              (doc.groups.find((g) => g.id === pin.groupId)?.name ??
+                "未所属") ||
+                "グループ",
+              "•",
+              "ピン",
+            )}
           {/each}
           {#if doc.groups.length}
             <h3 class="object-heading">
@@ -741,14 +748,15 @@ const selectionTitles = {
           {/if}
           {#each doc.groups as group (group.id)}
             {@render row(
-  { kind: "group", id: group.id },
-  group.name || "グループ",
-  centroid(doc, group.id)
-    ? doc.pins.filter((p) => p.groupId === group.id).length + " 個のピン"
-    : "グループが空",
-  "◇",
-  "グループ",
-)}
+              { kind: "group", id: group.id },
+              group.name || "グループ",
+              centroid(doc, group.id)
+                ? doc.pins.filter((p) => p.groupId === group.id).length +
+                    " 個のピン"
+                : "グループが空",
+              "◇",
+              "グループ",
+            )}
           {/each}
           {#if doc.guides.length}
             <h3 class="object-heading">
@@ -757,23 +765,23 @@ const selectionTitles = {
           {/if}
           {#each doc.guides as guide (guide.id)}
             {@render row(
-  { kind: "guide", id: guide.id },
-  "半径 " + formatDistance(guide.radiusGame, doc),
-  guideDetail(guide),
-  "◌",
-  "補助円",
-)}
+              { kind: "guide", id: guide.id },
+              "半径 " + formatDistance(guide.radiusGame, doc),
+              guideDetail(guide),
+              "◌",
+              "補助円",
+            )}
           {/each}
           {#if doc.reference}
             {@render row(
-  { kind: "reference" },
-  "基準円",
-  doc.reference.radiusGame
-    ? "半径 " + formatDistance(doc.reference.radiusGame, doc)
-    : "半径を入力してください",
-  "◎",
-  "基準",
-)}
+              { kind: "reference" },
+              "基準円",
+              doc.reference.radiusGame
+                ? "半径 " + formatDistance(doc.reference.radiusGame, doc)
+                : "半径を入力してください",
+              "◎",
+              "基準",
+            )}
           {/if}
         </div>
         <p id="object-empty" class="muted" hidden={objectCount > 0}>
@@ -793,7 +801,11 @@ const selectionTitles = {
         <summary>
           ゲーム領域
           <span
-            >{needsConfirmation ? "要確認" : hasImage ? "確認済み" : "画像未選択"}</span
+            >{needsConfirmation
+              ? "要確認"
+              : hasImage
+                ? "確認済み"
+                : "画像未選択"}</span
           >
         </summary>
         <p
@@ -803,14 +815,16 @@ const selectionTitles = {
         >
           <span
             id="area-source"
-            data-state={areaSource === "fallback" ? "full" : (areaSource ?? "none")}
+            data-state={areaSource === "fallback"
+              ? "full"
+              : (areaSource ?? "none")}
             >{areaSource === "auto"
-  ? "ゲーム領域を自動検出"
-  : areaSource === "manual"
-    ? "ゲーム領域を手動設定"
-    : areaSource
-      ? "画像全体を使用"
-      : "画像未選択"}</span
+              ? "ゲーム領域を自動検出"
+              : areaSource === "manual"
+                ? "ゲーム領域を手動設定"
+                : areaSource
+                  ? "画像全体を使用"
+                  : "画像未選択"}</span
           >
           <span
             id="area-confirmation"
@@ -828,12 +842,12 @@ const selectionTitles = {
           bind:this={areaForm}
           onsubmit={submitArea}
           onkeydown={(event) => {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    event.stopPropagation();
-    cancelArea();
-  }
-}}
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              cancelArea();
+            }
+          }}
         >
           <fieldset id="area-fields" disabled={!projection}>
             <legend class="sr-only">上下左右の除外幅</legend>
@@ -851,11 +865,11 @@ const selectionTitles = {
             </p>
             <div class="endpoint-fields">
               {#each [
-   { name: "top", label: "上" },
-   { name: "bottom", label: "下" },
-   { name: "left", label: "左" },
-   { name: "right", label: "右" },
- ] as side, i (side.name)}
+                { name: "top", label: "上" },
+                { name: "bottom", label: "下" },
+                { name: "left", label: "左" },
+                { name: "right", label: "右" },
+              ] as side, i (side.name)}
                 <label for={`area-${side.name}`}
                   >{side.label}（px）<input
                     id={`area-${side.name}`}
@@ -866,18 +880,20 @@ const selectionTitles = {
                     required
                     aria-describedby="area-hint area-error"
                     bind:value={areaValues[i]}
-                    max={size ? (i < 2 ? size.height : size.width) - 1 : undefined}
+                    max={size
+                      ? (i < 2 ? size.height : size.width) - 1
+                      : undefined}
                     aria-invalid={invalidSides.includes(i) ? true : undefined}
                     oninput={() => {
-  areaDirty = true;
-  areaError = "";
-  invalidSides = [];
-}}
+                      areaDirty = true;
+                      areaError = "";
+                      invalidSides = [];
+                    }}
                     oninvalid={() => {
-  invalidSides = [...invalidSides, i];
-  areaError =
-    "除外幅は0以上の整数にし、ゲーム領域を縦横とも1px以上残してください。";
-}}
+                      invalidSides = [...invalidSides, i];
+                      areaError =
+                        "除外幅は0以上の整数にし、ゲーム領域を縦横とも1px以上残してください。";
+                    }}
                   ></label
                 >
               {/each}
@@ -901,8 +917,8 @@ const selectionTitles = {
               type="button"
               class="wide"
               onclick={() => {
-  if (automaticArea()) cancelArea();
-}}
+                if (automaticArea()) cancelArea();
+              }}
             >
               自動検出を適用
             </button>
@@ -949,11 +965,11 @@ const selectionTitles = {
             disabled={!doc.reference}
             onchange={(event) => void changeRadius(event.currentTarget)}
             onkeydown={(event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    event.currentTarget.blur();
-  }
-}}
+              if (event.key === "Enter") {
+                event.preventDefault();
+                event.currentTarget.blur();
+              }
+            }}
           >
         </label>
         <label class="checkbox-label">
@@ -973,8 +989,9 @@ const selectionTitles = {
           class="wide"
           aria-describedby="reset-reference-hint"
           disabled={!hasImage ||
-  loading ||
-  (!doc.reference && sameCalibration(doc.calibration, DEFAULT_CALIBRATION))}
+            loading ||
+            (!doc.reference &&
+              sameCalibration(doc.calibration, DEFAULT_CALIBRATION))}
           onclick={resetReference}
         >
           この画像の基準をリセット
@@ -1097,8 +1114,8 @@ const selectionTitles = {
           <summary>保存・削除の操作</summary>
           <p id="saved-reference-detail" class="muted">
             {savedPreset
-  ? `保存したゲーム内半径：${savedPreset.reference.radiusGame}（カメラ設定を含む）`
-  : ""}
+              ? `保存したゲーム内半径：${savedPreset.reference.radiusGame}（カメラ設定を含む）`
+              : ""}
           </p>
           <button
             id="save-reference"
@@ -1116,8 +1133,8 @@ const selectionTitles = {
             data-state={canSave ? "available" : "unavailable"}
           >
             {canSave
-  ? "確定済みの円とカメラ設定を保存します。調整後は明示的に上書きしてください。"
-  : "先に基準円のゲーム内半径を設定してください。"}
+              ? "確定済みの円とカメラ設定を保存します。調整後は明示的に上書きしてください。"
+              : "先に基準円のゲーム内半径を設定してください。"}
           </p>
           <button
             id="delete-saved-reference"
