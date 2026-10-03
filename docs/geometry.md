@@ -1,55 +1,50 @@
-# Geometry and state boundaries
+# 幾何モデルと状態境界
 
-## Four spaces
+## 4つの座標系
 
-Client coordinates are CSS pixels from Pointer Events. Image coordinates are
-decoded intrinsic pixels, with the origin at the top left, X right and Y down.
-Ground coordinates are orthonormal coordinates on one plane, initially in arbitrary
-units. Game coordinates are Ground coordinates multiplied by one positive scale.
-Branded point/distance types distinguish these spaces at module boundaries.
+| 座標系 | 単位・定義 |
+| --- | --- |
+| クライアント座標（Client） | Pointer Eventsが返すCSSピクセル |
+| 画像座標（Image） | デコードした元画像のピクセル。左上が原点、Xは右向き、Yは下向き |
+| 地面座標（Ground） | 同一平面上の正規直交座標。初期状態では任意の単位 |
+| ゲーム座標（Game） | 地面座標に共通の正のスケールを掛けた座標 |
 
-The viewport owns only zoom, fit and native scroll offsets. DOM code snapshots the
-stage's client origin. `clientToImage = (client - origin) / zoom`; scroll offsets
-are already included in the origin. Device pixel ratio does not enter this mapping.
+点・距離には座標系ごとのブランド型を使い、モジュール境界での混同を防ぎます。
 
-Pins and free centers are stored in Ground space. No rounded image coordinates,
-centroids, distance labels, scales or sampled SVG paths are stored in the document.
-Group membership exists only as a pin's `groupId`. Centroids are Ground arithmetic
-means, and endpoint references resolve against the current document.
+表示領域はズーム、画像を収める表示調整、ブラウザ標準のスクロール位置だけを管理します。
+DOM処理でステージのクライアント座標上の原点を取得し、
+`clientToImage = (client - origin) / zoom` で画像座標に変換します。
+スクロール位置は原点に含まれ、デバイスピクセル比はこの変換に使いません。
 
-## Shared camera, per-image render area
+ピンと自由な円中心は地面座標で保存します。丸めた画像座標、グループ中心、距離ラベル、
+スケール、サンプリングしたSVGパスは編集ドキュメントに保存しません。
+グループ所属はピンの `groupId` だけで表し、中心は地面座標の算術平均で求めます。
+測距線の端点参照は、その時点の編集ドキュメントから解決します。
 
-`CameraCalibration` defaults to pitch (`elevationDegrees`, 25.2° downward from horizontal), roll (0°), vertical FOV (9.92°),
-and principal-point fractions (0.5, 0.5). It contains no screenshot dimensions
-or pixel-space vanishing points. The measurement evidence is in
-`calibration/range-2026-09-26.json`. See `calibration/README.md` for limitations.
+## 共通カメラと画像ごとの描画領域
 
-The camera has square pixels, zero skew and no lens distortion. A shared camera
-and constant vertical FOV are assumptions: aspect changes alter horizontal
-coverage, while recognized borders sit outside the game viewport. This is not
-a claim that every game mode/device has been empirically verified.
+`CameraCalibration` の初期値は、ピッチ角（`elevationDegrees`、水平から下向きに25.2°）、
+ロール角0°、垂直画角9.92°、描画領域内の主点比率 (0.5, 0.5) です。
+画像寸法やピクセル座標の消失点は含みません。測定根拠は
+[校正データ](calibration/range-2026-09-26.json)、制約は[校正の記録](calibration/README.md)を参照してください。
 
-On image decode, a small Canvas sample identifies paired nearly uniform solid
-or blue patterned borders. Similar opposite borders between 1% and 22% of the
-image dimension are accepted; ambiguous/asymmetric borders retain the full
-image on that axis. If horizontal detection fails, a blue-band fallback samples
-the outer quarters of each row, ignoring the central home indicator. It requires
-at least 70% blue pixels in those samples after rejecting RGB outliers more than
-32 from the per-channel median. It then requires low color variance, and searches
-past at most 4% of image height in outer chrome for paired bands of similar thickness.
-Sampling is bounded at 256 × 1024 pixels and the temporary Canvas is released.
-No image is uploaded. Resolution independence requires the correct render area
-and the shared-camera assumptions. Large player frames or ambiguous bands need
-manual bounds. A full-image automatic result is a fallback, not proof of no borders.
-The document stores the effective bounds, their source (`auto`, `manual`, `full`,
-or `fallback`), and a separate `confirmed` flag together with the ground data.
-Every new image starts unconfirmed, including successfully detected bands. The image resource keeps the original
-automatic result for restoring automatic mode. The reference panel provides integer
-top/bottom/left/right insets, validated to leave at least one pixel on each axis.
-Draft bounds only draw a preview; they never change projection or export.
-See [the measurement guide](measurement.md) for observed failures and diagnostic steps.
+正方形の画素、スキュー（軸の非直交性）なし、レンズ歪みなしを仮定します。
+カメラ設定と垂直画角は共通で、縦横比の違いは横方向の可視範囲の違いとして扱い、
+検出した帯はゲーム描画領域の外側とします。全モード・全端末で実証済みという意味ではありません。
 
-For detected render area `(x, y, width, height)` and normalized principal `(u,v)`:
+画像のデコード時に、対になる単色・青い模様の帯、または限定的なタイトルバー付きの枠と青帯を
+Canvasのサンプルから検出します。サンプルは最大256 × 1024pxです。
+一時Canvasは解放し、画像は外部送信しません。判定できない軸は画像全体を使います。
+画像全体を使う自動判定結果はフォールバックであり、帯がないことの保証ではありません。
+解像度に依存しない測定には、正しい描画領域と共通カメラの前提が必要です。
+
+編集ドキュメントは、適用済み領域、その由来（`auto`・`manual`・`full`・`fallback`）、
+独立した確認状態 `confirmed` を地面上のデータとともに保持します。
+画像リソースは読み込み時の自動検出結果を保持します。未適用の領域はプレビューだけに使い、
+投影や出力には反映しません。検出条件と操作は[ゲーム領域の仕様](game-area.md)、
+誤差の確認手順は[測距の仕組み](measurement.md)を参照してください。
+
+描画領域 `(x, y, width, height)` と主点の正規化比率 `(u,v)` から投影を求めます。
 
 ```text
 f  = height / (2 * tan(verticalFov / 2))
@@ -60,14 +55,14 @@ e2 = (-sin(roll)*sin(elevation), cos(roll)*sin(elevation), -cos(elevation))
 n  = e1 × e2
 ```
 
-Scaling the render area scales `f` and the principal position. Adding borders
-translates the principal point without changing `f`. Changing only viewport
-width changes horizontal coverage without changing `f`. Arbitrary post-capture
-crops cannot be inferred from dimensions alone and are outside this policy.
+描画領域の拡縮に合わせて `f` と主点の位置を拡縮します。外側に帯を加える場合は、
+`f` を変えず主点を平行移動します。ゲーム描画領域の幅だけが変わる場合も `f` は変えず、
+横方向の可視範囲が変わるものとして扱います。撮影後の任意のクロップは寸法だけから
+推定できず、このモデルの対象外です。
 
-Camera axes are X right, Y down, Z forward. Choose camera height 1 in arbitrary
-Ground units: the plane is `n · P = 1`. The Ground origin is the intersection of
-the optical axis and plane, `O = (0, 0, 1/n.z)`.
+カメラ座標の軸はXが右、Yが下、Zが前方です。カメラの高さを地面座標の任意単位で1とし、
+地面を `n · P = 1` と表します。地面座標の原点は光軸と地面の交点
+`O = (0, 0, 1/n.z)` です。
 
 ```text
 P = O + ground.x * e1 + ground.y * e2
@@ -75,100 +70,95 @@ image = (cx + f*P.x/P.z, cy + f*P.y/P.z)
 H = K [e1 e2 O]
 ```
 
-For inverse projection, `ray = ((x-cx)/f, (y-cy)/f, 1)`,
-`P = ray / dot(n, ray)`, and Ground coordinates are dot products of `P-O` with
-e1 and e2. This directly implements the inverse homography without a matrix library.
-The ground basis is independent of the stage's rail/tile orientation. Rotating
-the ground coordinate axes does not change circles, distances or centroids.
-Pins/centers cannot be placed in detected borders, and annotations are clipped
-to the render area. PNG export retains the entire original image and its borders.
+逆投影では `ray = ((x-cx)/f, (y-cy)/f, 1)`、`P = ray / dot(n, ray)` とし、
+`P-O` と `e1`・`e2` の内積から地面座標を求めます。行列ライブラリを使わず、
+逆ホモグラフィを直接計算します。地面の基底はステージの線路・タイルの向きとは独立です。
+地面の座標軸を回転しても、円・距離・グループ中心は変わりません。
+ピンや円中心は検出した帯の中に置けず、注釈は描画領域内にクリップします。
+PNGは帯を含む元画像全体を保持します。
 
-## Why not screen distances?
+## 距離とスケール
 
-Perspective divides by depth. Equal Ground segments at different image heights
-project to different pixel lengths.
-Measuring these screen lengths would give different answers for the same distance.
-Inverse-project endpoints first, compute Euclidean Ground distance, then apply scale.
+透視投影では奥行きで割るため、地面上で同じ長さでも画像内の高さによってピクセル長が変わります。
+両端点を逆投影し、地面上のユークリッド距離を求めてからスケールを掛けます。
 
-The reference circle supplies only `scale = knownGameRadius / radiusGround`.
-It does not estimate camera orientation. Moving it preserves Ground radius; resizing
-it changes scale. Pins remain fixed in Ground space. Guide circles keep their entered
-Game radius and derive `radiusGround = radiusGame / scale` on every render.
+基準円は `scale = knownGameRadius / radiusGround` だけを決め、カメラの姿勢は推定しません。
+移動では地面上の半径を保持し、大きさの変更ではスケールが変わります。ピンは地面座標で固定されます。
+補助円は入力されたゲーム内半径を保持し、描画ごとに `radiusGround = radiusGame / scale` を求めます。
 
-Without a configured reference radius, use `scale = 1 / firstMeasurementGroundLength`.
-The first remaining measurement is always one; moving its endpoints updates all
-relative distances, and deleting it promotes the next measurement. A zero-length
-first line or an empty endpoint group leaves the document uncalibrated. Reference
-calibration takes priority. The shared scale also applies to guide circles and PNG export.
+基準円のゲーム内半径が未設定の場合は `scale = 1 / firstMeasurementGroundLength` を使います。
+残っている最初の測距線を1とし、その端点を動かすとすべての相対距離を更新します。
+最初の線を削除すると次の線が基準になります。基準線の長さが0、または端点のグループが空の場合は
+スケールを確定できません。基準円による校正を優先し、補助円とPNGにも同じスケールを使います。
 
-## Circles and numerical limits
+## 円と数値制約
 
-Sample true Ground circles `center + r*(cos θ, sin θ)` and project each point.
-Do not interpret their image bounds as independently editable ellipse axes.
-Start with 16 arcs; subdivide until projected midpoint-to-chord error is at most
-0.5 CSS px on screen or 0.25 intrinsic px for export. Depth 8 per arc caps the
-circle at 4096 vertices; emit a precision notice when the cap is reached.
+地面上の真円 `center + r*(cos θ, sin θ)` をサンプリングし、各点を投影します。
+画像上の外接矩形を、個別に編集できる楕円の軸として扱いません。
+16区間から始め、投影した円弧の中点と弦の誤差が画面では0.5 CSS px以下、
+出力では元画像の0.25px以下になるまで分割します。各区間の分割深さは8、
+円全体は最大4096頂点とし、上限に達した場合は精度の注意を表示します。
 
-Reject non-finite inputs, invalid viewport bounds/FOV/elevation, non-positive radii, nearly horizontal
-optical-plane intersections (`n.z < 1e-6`), and inverse rays with `n·ray <= 1e-9`.
-Forward points require Z > 1e-6. The entire circle must satisfy:
+非有限値、描画領域・垂直画角・ピッチ角の不正値、0以下の半径、
+光軸と地面がほぼ平行になる状態（`n.z < 1e-6`）、逆投影の `n·ray <= 1e-9` を拒否します。
+順投影には `Z > 1e-6` が必要です。円全体は次の条件を満たす必要があります。
 
 ```text
 O.z + center.x*e1.z + center.y*e2.z - r*hypot(e1.z, e2.z) > 1e-6
 ```
 
-Circles may extend outside the image, which SVG clips. Invalid attached circles are
-retained and listed but not drawn. Invalid reference edits are rejected. An empty
-group has no center; its dependent objects remain suspended until it has members.
+画像外にはみ出した円はSVGでクリップします。付随する円が無効な場合はデータと一覧表示を残し、
+描画はしません。不正な基準円の編集は拒否します。空のグループには中心がなく、
+依存するオブジェクトはメンバーが追加されるまで保留します。
 
-## Transactions and export
+## 編集とPNG出力
 
-Advanced settings expose the camera parameters in the reference panel. A calibration
-or render-area edit reprojects pins and free centers through their old image positions into the new
-Ground plane. The reference circle keeps its projected center and uses the distance
-to its remapped old +X rim point as its new radius; its full outline is not preserved.
-Known Game radii remain unchanged, and group centers and scale are derived again.
-Invalid point mappings or reference circles reject the entire edit. Calibration,
-render-area bounds/source and remapped geometry share one history snapshot, including Undo/Redo.
-Source-only changes skip remapping. Out-of-area anchors remain stored but annotations
-are clipped; invalid ground mappings reject the whole edit. The projection is
-rebuilt from the current document for display and export. Loading another image uses
-the explicitly saved reference circle and camera, or defaults if none is usable.
-The saved preset contains no image dimensions or render area. It must pass schema,
-numeric, forward-circle and in-frame-center checks before becoming the new document's
-initial state. Automatic application does not create an Undo step or count as unsaved
-editing. Resetting the current reference removes the old circle before remapping the
-remaining anchors to the default camera, in one reversible edit. Preset storage is
-independent of document history. Resetting the reference preserves the current area,
-and saving a reference validates it against that effective area. Hiding advanced
-settings only hides controls. Area controls use a native disclosure, initially collapsed.
-Unconfirmed areas show a compact red notice below the image dimensions, even when
-the reference panel closes. OK marks the current bounds confirmed without remapping
-geometry; applying automatic, manual or full-image bounds also confirms them. The
-confirmation flag participates in history but alone does not trigger a discard-edits
-prompt on image replacement. The settings button opens both disclosures and focuses
-the first area input. Full-image bounds display "画像全体" with the aspect ratio instead of
-repeating pixel dimensions. Editing and PNG export remain available.
+### 投影の変更
 
-`applyEdit` is a pure transition. A drag previews changes against its starting
-document, commits once on release, and discards them on Escape/capture loss/resize.
-The history contains at most 100 immutable document snapshots; image resources and
-viewport state never enter it. Direct references are removed atomically on deletion.
+高度な設定を表示すると、基準パネルでカメラのパラメータを操作できます。
+カメラや描画領域を変更すると、ピンと自由な円中心を変更前の画像座標を経由して新しい地面座標へ再投影します。
+基準円は画像上の中心を保持し、変更前の地面+X側の円周点を再投影して中心との距離を新しい半径にします。
+円周全体の形は保持しません。既知のゲーム内半径は保持し、グループ中心とスケールは再計算します。
 
-SVG rendering is shared with PNG output. Export freezes the current document,
-renders at zoom 1 without controls, and draws the original raster plus a standalone
-annotation SVG to Canvas. Output dimensions and annotation sizes are independent
-of viewport, pan, zoom, browser DPR and UI theme.
+点の変換や基準円が不正になる場合は変更全体を拒否します。カメラ設定、描画領域とその由来、
+再投影した形状はUndo／Redoを含む同じ履歴スナップショットに保存します。
+領域の由来だけが変わる場合は再投影しません。領域外のアンカーは保持し、注釈をクリップします。
+画面表示と出力の投影は、現在の編集ドキュメントから構築します。
 
-Labels are derived presentation, not measurement coordinates. A bounded greedy layout
-uses measured text bounds in CSS pixels, moving labels and adding non-interactive leader
-lines. PNG runs the same layout at zoom 1. Label clicks select their owners; dragging a
-label never moves its underlying ground point. Hover and pin-tool dimming remain UI-only.
+### 保存基準
 
-See the executable geometry/state tests and production-browser checks for invariants.
+別の画像を開くと、明示的に保存した基準円とカメラ設定を使います。適用できる基準がなければ初期値を使います。
+保存基準に画像寸法や描画領域は含めません。構造・数値、円全体がカメラ前方に収まること、
+中心が描画領域内にあることを検証してから、新しい編集ドキュメントの初期状態にします。
+自動適用はUndoの操作を追加せず、未保存の編集としても扱いません。
 
-## References
+基準リセットは現在の基準円を削除し、残るアンカーを初期カメラへ再投影する1回の可逆な編集です。
+保存基準の保存先は編集履歴とは独立しています。リセットは現在の描画領域を維持し、
+基準の保存時検証にも適用済み領域を使います。高度な設定を非表示にしても、適用値は維持します。
+領域の確認状態は履歴に含めますが、確認だけでは画像切替時の編集破棄確認を出しません。
 
-- [Orthogonal vanishing-point constraint](https://www.andrew.cmu.edu/course/16-822/projects/kaustavm/proj2/)
-- [Camera modeling and calibration](https://visionbook.mit.edu/imaging_geometry.html)
-- [SVG non-scaling strokes](https://developer.mozilla.org/en-US/docs/Web/SVG/Reference/Attribute/vector-effect)
+### 履歴
+
+`applyEdit` は副作用のない状態遷移です。ドラッグは開始時の文書をもとにプレビューし、
+離した時に1回だけ確定します。Escape・ポインター捕捉の喪失・リサイズでは破棄します。
+履歴は最大100件の不変な文書スナップショットです。画像リソースと表示領域の状態は含めません。
+オブジェクトの削除と、その直接参照の削除は一括で行います。
+
+### 描画
+
+SVGの描画計算は画面とPNGで共有します。出力開始時に文書を固定し、倍率1で操作用の要素を除いて描画します。
+元画像と独立した注釈SVGをCanvasに合成します。出力寸法と注釈のサイズは、
+表示領域・パン・ズーム・ブラウザのデバイスピクセル比・UIテーマに依存しません。
+
+ラベルは測定座標から求める表示データです。CSSピクセルで計測した文字の外接矩形を使い、
+探索に上限を設けた貪欲法でラベルを移動し、操作対象にならない引出線を加えます。
+PNGも倍率1で同じ配置計算を使います。ラベルのクリックはその対象を選択し、
+ラベルのドラッグで元の地面上の点を動かしません。ホバーとピンツールの薄表示はUIだけの状態です。
+
+これらの性質は幾何・状態の自動テストと、本番ビルドを使うブラウザテストで確認します。
+
+## 参考資料
+
+- [直交する消失点の制約](https://www.andrew.cmu.edu/course/16-822/projects/kaustavm/proj2/)
+- [カメラモデルと校正](https://visionbook.mit.edu/imaging_geometry.html)
+- [SVGの非拡縮ストローク](https://developer.mozilla.org/en-US/docs/Web/SVG/Reference/Attribute/vector-effect)
