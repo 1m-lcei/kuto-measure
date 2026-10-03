@@ -12,7 +12,7 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "test": "bun test tests/core.test.ts tests/image.test.ts",
-    "test:browser": "bun tests/browser.ts",
+    "test:browser": "bun run build && bun tests/browser.ts",
     "test:performance": "bun tests/performance.ts"
   },
   "devDependencies": {

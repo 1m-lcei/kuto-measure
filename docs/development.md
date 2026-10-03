@@ -17,7 +17,7 @@ bun x playwright install chromium firefox webkit
 bun run test:browser
 ```
 
-ブラウザテストは実際の`dist`を`/nested/`配下で配信し、Chromium・Firefox・WebKitで検証します。
+`bun run test:browser` はビルド後、生成した`dist`を`/nested/`配下で配信し、Chromium・Firefox・WebKitで検証します。
 Linuxではブラウザ準備に`--with-deps`を追加してください。
 整形・安全なlint修正は`bun run format`で実行できます。
 
