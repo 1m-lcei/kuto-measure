@@ -75,7 +75,7 @@ export function prepareAnnotations(
   const typeNames: Record<string, string> = {
     pin: "ピン",
     group: "グループ",
-    measurement: "測距線",
+    measurement: "距離線",
     reference: "基準円",
     guide: "補助円",
   };

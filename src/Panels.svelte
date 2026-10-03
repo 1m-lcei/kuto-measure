@@ -431,9 +431,9 @@ const scaleTitles = {
   invalid: "投影を設定できません",
 };
 const scaleHints = {
-  unset: "基準円なしでも測定できます。最初の測距線を1として比較します。",
+  unset: "基準円なしでも測定できます。最初の距離線を1として比較します。",
   absolute: "基準円に指定した半径をもとに、距離を表示しています。",
-  relative: "先頭の測距線を1として、地面上の距離を表示しています。",
+  relative: "先頭の距離線を1として、地面上の距離を表示しています。",
   invalid: "キャリブレーションの設定を確認してください。",
 };
 const savedStates = {
@@ -449,7 +449,7 @@ const selectionTitles = {
   none: "対象を選択すると編集できます。",
   pin: "ピン",
   group: "グループ",
-  measurement: "測距線",
+  measurement: "距離線",
   guide: "補助円",
   reference: "基準円",
 };
@@ -654,7 +654,7 @@ const selectionTitles = {
           disabled={!from || !to || from === to}
           onclick={addMeasurement}
         >
-          測距線を追加
+          距離線を追加
         </button>
       </section>
       <section>
@@ -713,7 +713,7 @@ const selectionTitles = {
         <div id="object-list" bind:this={objectList}>
           {#if doc.measurements.length}
             <h3 class="object-heading">
-              測距線 <span>{doc.measurements.length}</span>
+              距離線 <span>{doc.measurements.length}</span>
             </h3>
           {/if}
           {#each doc.measurements as m (m.id)}
@@ -723,8 +723,8 @@ const selectionTitles = {
               measurementValue(m),
               "↔",
               !doc.reference?.radiusGame && m === doc.measurements[0]
-                ? "測距線 · 基準"
-                : "測距線",
+                ? "距離線 · 基準"
+                : "距離線",
             )}
           {/each}
           {#if doc.pins.length}
@@ -785,7 +785,7 @@ const selectionTitles = {
           {/if}
         </div>
         <p id="object-empty" class="muted" hidden={objectCount > 0}>
-          ピン・円・測距線がここに並びます。
+          ピン・円・距離線がここに並びます。
         </p>
       </section>
     </div>

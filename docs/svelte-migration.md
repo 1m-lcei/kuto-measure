@@ -8,7 +8,7 @@
 
 検証コマンドは `bun run typecheck`、`bun run lint`、`bun run test`、`bun run build`、ビルド後の `bun run test:browser` です。単体テスト31件、Chromium・Firefox・WebKitのブラウザテストを実行しました。既存の保存・PNG・相対距離・グループ・基準・領域・Undo/Redo・タッチ検証に加え、パン中の無更新、SVG/一覧ノードとフォーカスの保持、テーマ再読込、領域状態の文言、入力文字列のエスケープを検証します。
 
-性能計測はWindows、headless Chromium 153.0.8010.12、1440×1000、device scale 1、1536×709の生成画像、24ピン・8測距線で実施しました。同一の本番ビルド用テストで90フレーム×8イベントを3回実行し、以下は各回の値の中央値です。ドラッグは実際にピンの座標が変わることも検査します。生データは [performance/svelte-migration.json](performance/svelte-migration.json) にあります。
+性能計測はWindows、headless Chromium 153.0.8010.12、1440×1000、device scale 1、1536×709の生成画像、24ピン・8距離線で実施しました。同一の本番ビルド用テストで90フレーム×8イベントを3回実行し、以下は各回の値の中央値です。ドラッグは実際にピンの座標が変わることも検査します。生データは [performance/svelte-migration.json](performance/svelte-migration.json) にあります。
 
 | 操作 | フレーム中央値 前→後 | フレームp95 前→後 | JS処理時間／90フレーム 前→後 |
 | --- | ---: | ---: | ---: |

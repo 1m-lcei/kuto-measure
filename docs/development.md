@@ -51,7 +51,7 @@ PNG保存はクリックのユーザー操作権限を保ったまま `showSaveF
 
 ## 性能計測
 
-ビルド後に `bun run test:performance` で生成画像・24ピン・8測距線を測定します。ピン配置時のホバー判定は `bun tests/hover-performance.ts` で測定します。画像は外部送信しません。
+ビルド後に `bun run test:performance` で生成画像・24ピン・8距離線を測定します。ピン配置時のホバー判定は `bun tests/hover-performance.ts` で測定します。画像は外部送信しません。
 測定条件と結果は [Svelte移行の検証記録](svelte-migration.md)、[ホバー判定の検証記録](hover-performance.md) を参照してください。
 
 ## 公開

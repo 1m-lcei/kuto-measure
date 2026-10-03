@@ -63,7 +63,7 @@ const tools = [
   ["select", "↖", "選択"],
   ["pin", "⊕", "ピン"],
   ["reference", "◎", "基準円"],
-  ["measure", "↔", "測距線"],
+  ["measure", "↔", "距離線"],
   ["guide", "◌", "補助円"],
 ] as const;
 type Tool = (typeof tools)[number][0];
@@ -397,7 +397,7 @@ function editDocument(edit: Edit) {
       status(
         "並び順を変更しました。" +
           (edit.target.kind === "measurement" && !next.reference?.radiusGame
-            ? "先頭の測距線を相対距離の基準にしています。"
+            ? "先頭の距離線を相対距離の基準にしています。"
             : ""),
       );
     return true;
@@ -430,7 +430,7 @@ function addMeasurement(a: Endpoint, b: Endpoint) {
   selection = { kind: "measurement", id };
   if (tool !== "measure") tool = "select";
   measureStart = null;
-  status("測距線を追加しました。");
+  status("距離線を追加しました。");
 }
 function performHistory(direction: "undo" | "redo") {
   if (loading) return;
