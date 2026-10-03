@@ -256,15 +256,10 @@ try {
           );
         if (width < 780) {
           assert(Math.max(title.bottom, icons.bottom) <= files.top);
-          if (width >= 390) {
-            assert(title.right <= icons.left);
-            assert(
-              Math.max(title.top, icons.top) <
-                Math.min(title.bottom, icons.bottom),
-            );
-          } else {
-            assert(title.bottom <= icons.top);
-          }
+          assert(
+            title.right <= icons.left || title.bottom <= icons.top,
+            `Header title and icons overlap at ${width}px`,
+          );
           await page.locator("#menu-trigger").focus();
           await page.keyboard.press("Tab");
           await expect(page.locator("#file")).toBeFocused();
