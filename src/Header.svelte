@@ -81,7 +81,7 @@ export function closeMenu() {
 >
 <header id="header" class="header" bind:this={headerNode}>
   {#each narrow.current
-    ? ["icons", "brand", "actions"]
+    ? ["brand", "icons", "actions"]
     : ["brand", "actions", "icons"] as section (section)}
     {#if section === "icons"}
       {@render icons()}

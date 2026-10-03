@@ -208,7 +208,7 @@ try {
       await expect(page.locator("#reference-panel")).toBeHidden();
       await expect(page.locator("#analysis-panel")).toBeVisible();
       await expect(page.locator("#scale-state")).toBeVisible();
-      for (const width of [1440, 780, 779, 390, 320, 1440]) {
+      for (const width of [1440, 780, 779, 480, 390, 360, 320, 1440]) {
         await page.locator("#theme-toggle").focus();
         await page.setViewportSize({ width, height: 1000 });
         assert.deepEqual(
@@ -232,7 +232,7 @@ try {
         await page.waitForFunction(() => {
           const header = document.getElementById("header");
           return (
-            (header?.firstElementChild?.id === "header-icons") ===
+            (header?.children[1]?.id === "header-icons") ===
             matchMedia("(width < 780px)").matches
           );
         });
@@ -255,7 +255,16 @@ try {
             `Header overflows at ${width}px`,
           );
         if (width < 780) {
-          assert(icons.bottom <= title.top && title.bottom <= files.top);
+          assert(Math.max(title.bottom, icons.bottom) <= files.top);
+          if (width >= 390) {
+            assert(title.right <= icons.left);
+            assert(
+              Math.max(title.top, icons.top) <
+                Math.min(title.bottom, icons.bottom),
+            );
+          } else {
+            assert(title.bottom <= icons.top);
+          }
           await page.locator("#menu-trigger").focus();
           await page.keyboard.press("Tab");
           await expect(page.locator("#file")).toBeFocused();
