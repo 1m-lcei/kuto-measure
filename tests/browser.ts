@@ -316,6 +316,26 @@ try {
       await page.locator("#menu-trigger").click();
       await page.locator("#about-trigger").click();
       await expect(page.locator("#about")).toBeVisible();
+      const portalLink = page.locator(
+        '#about a[href="https://1m-lcei.github.io/kei-pinboard/"]',
+      );
+      await expect(portalLink).toBeVisible();
+      await expect(portalLink.locator("use")).toHaveAttribute(
+        "href",
+        /icons\.svg#home$/,
+      );
+      await expect(portalLink).toHaveAttribute("target", "_blank");
+      await expect(portalLink).toHaveAttribute("rel", "noopener noreferrer");
+      await context.route(
+        "https://1m-lcei.github.io/kei-pinboard/**",
+        (route) => route.fulfill({ status: 200, body: "ok" }),
+      );
+      await portalLink.focus();
+      const popupPromise = page.waitForEvent("popup");
+      await page.keyboard.press("Enter");
+      const popup = await popupPromise;
+      await expect(popup).toHaveURL("https://1m-lcei.github.io/kei-pinboard/");
+      await popup.close();
       assert.equal(
         await page
           .getByRole("dialog")

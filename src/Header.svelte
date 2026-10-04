@@ -368,7 +368,17 @@ export function closeMenu() {
     バージョン
     {__APP_VERSION__}{__BUILD_COMMIT__ ? ` · ${__BUILD_COMMIT__}` : ""}
   </p>
-  <nav class="about-links" aria-label="連絡先とソースコード">
+  <nav class="about-links" aria-label="関連リンク">
+    <a
+      href="https://1m-lcei.github.io/kei-pinboard/"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <svg class="link-icon" aria-hidden="true">
+        <use href={`${import.meta.env.BASE_URL}icons.svg#home`} />
+      </svg>
+      ポータルサイト
+    </a>
     <a href="https://x.com/1m_lcei" target="_blank" rel="noopener noreferrer">
       <svg class="link-icon" aria-hidden="true">
         <use href={`${import.meta.env.BASE_URL}icons.svg#x`} />
