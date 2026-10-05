@@ -370,7 +370,7 @@ export function closeMenu() {
   </p>
   <nav class="about-links" aria-label="関連リンク">
     <a
-      href="https://1m-lcei.github.io/kei-pinboard/"
+      href="https://1m-lcei.github.io/"
       target="_blank"
       rel="noopener noreferrer"
     >
