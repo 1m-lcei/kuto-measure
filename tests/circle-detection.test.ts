@@ -57,6 +57,42 @@ test("fits a partially occluded circle", () => {
   );
 });
 
+test("finds the outer ring in merged concentric and overlapping contours", () => {
+  const p = fixtureProjection();
+  const circles = [
+    fixtureCircle(p, 232, 267, 105),
+    fixtureCircle(p, 232, 267, 74),
+    fixtureCircle(p, 205, 193, 126),
+    fixtureCircle(p, 351, 274, 90),
+    fixtureCircle(p, 296, 218, 111),
+  ];
+  const pixels = circlePixels(p, circles, { noise: true });
+  const found = detectCircles(pixels, p);
+  const follows = (actual: (typeof found)[number], expected: FixtureCircle) =>
+    distance(actual.center, expected.center) < expected.radius * 0.04 &&
+    Math.abs(actual.radiusGround / expected.radius - 1) < 0.04;
+  expect(found.some((circle) => follows(circle, circles[0]))).toBe(true);
+  expect(found.every((circle) => circles.some((c) => follows(circle, c)))).toBe(
+    true,
+  );
+  expect(detectCircles(pixels, p, simd)).toEqual(found);
+});
+
+test("keeps a supported circle when bright-rim refinement drifts off its contour", () => {
+  const p = buildProjection(
+    { ...DEFAULT_CALIBRATION, elevationDegrees: 28.28 },
+    { width: 640, height: 420 },
+  );
+  const circles = [
+    fixtureCircle(p, 190, 160, 95),
+    fixtureCircle(p, 440, 275, 120),
+  ];
+  const pixels = circlePixels(p, circles, { noise: true });
+  const found = detectCircles(pixels, p);
+  matches(found, circles);
+  expect(detectCircles(pixels, p, simd)).toEqual(found);
+});
+
 test("rejects sparse fragments spread around a circle", () => {
   const p = fixtureProjection();
   const circle = fixtureCircle(p, 320, 210, 200);
@@ -66,16 +102,21 @@ test("rejects sparse fragments spread around a circle", () => {
 });
 
 test("refines a broad inner glow onto its thin bright outer rim", () => {
-  const p = fixtureProjection();
-  const circle = fixtureCircle(p, 320, 210, 95);
-  const found = detectCircles(glowingCirclePixels(p, circle), p);
-  expect(found.length).toBe(1);
-  expect(distance(found[0].center, circle.center) / circle.radius).toBeLessThan(
-    0.01,
-  );
-  expect(Math.abs(found[0].radiusGround / circle.radius - 1)).toBeLessThan(
-    0.01,
-  );
+  for (const elevationDegrees of [25.2, 25.27]) {
+    const p = buildProjection(
+      { ...DEFAULT_CALIBRATION, elevationDegrees },
+      { width: 640, height: 420 },
+    );
+    const circle = fixtureCircle(p, 320, 210, 95);
+    const found = detectCircles(glowingCirclePixels(p, circle), p);
+    expect(found.length).toBe(1);
+    expect(
+      distance(found[0].center, circle.center) / circle.radius,
+    ).toBeLessThan(0.01);
+    expect(Math.abs(found[0].radiusGround / circle.radius - 1)).toBeLessThan(
+      0.01,
+    );
+  }
 });
 
 test("preserves dark outlines when no bright rim is present", () => {

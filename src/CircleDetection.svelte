@@ -96,7 +96,7 @@ function detect() {
       backend = event.data.simd ? "simd" : "javascript";
       message = circles.length
         ? `${circles.length}個の候補が見つかりました。画像と重なりを確認して選んでください。`
-        : "円の候補が見つかりませんでした。ゲーム領域とカメラ設定を確認するか、手動で円を合わせてください。";
+        : "円を検出できませんでした。ゲーム領域とカメラ設定を確認するか、手動で円を合わせてください。";
     };
     current.onerror = (event) => {
       event.preventDefault();
@@ -131,6 +131,7 @@ function detect() {
     onclick={detect}
   >
     {busy ? "円を検出中…" : "画像から円を検出"}
+    <span class="experimental-badge">実験的</span>
   </button>
   {#if busy}
     <button
@@ -147,7 +148,14 @@ function detect() {
   <p class="muted">
     現在のカメラ設定で、地面上の円を検出します。検出だけでは編集内容は変わりません。
   </p>
-  <p id="circle-detection-status" role="status" aria-busy={busy}>{message}</p>
+  <p
+    id="circle-detection-status"
+    role="status"
+    aria-busy={busy}
+    data-empty={Boolean(backend && !circles.length && message)}
+  >
+    {message}
+  </p>
   {#if error}
     <p role="alert">{error}</p>
   {/if}
@@ -187,6 +195,8 @@ function detect() {
     <button
       id="clear-circle-candidates"
       type="button"
+      class="wide primary"
+      aria-describedby="clear-circle-candidates-hint"
       onclick={() => {
         circles = [];
         message = "";
@@ -194,10 +204,35 @@ function detect() {
     >
       候補を閉じる
     </button>
+    <p id="clear-circle-candidates-hint" class="muted">
+      選び終えたら候補を閉じ、測定・編集を続けてください。
+    </p>
   {/if}
 </div>
 
 <style>
+#circle-detection-status[data-empty="true"] {
+  margin-block-start: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--soft);
+}
+.experimental-badge {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 3px 6px 4px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  color: var(--accent);
+  background: var(--soft);
+  color: light-dark(#854d0e, #fcd34d);
+  background: light-dark(#fef3c7, #422b10);
+  font-size: 0.85em;
+  line-height: 1;
+  white-space: nowrap;
+}
 ol {
   padding: 0;
   list-style: none;

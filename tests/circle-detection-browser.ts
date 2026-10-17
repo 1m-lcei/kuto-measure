@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import type { Page } from "playwright";
 import { expect } from "playwright/test";
+import { DEFAULT_CALIBRATION } from "../src/geometry";
 import {
   circlePixels,
   fixtureCircle,
@@ -128,14 +129,49 @@ export async function checkCircleDetection(page: Page, engine: string) {
     path: `test-results/${engine}-circle-candidates-mobile.png`,
     fullPage: true,
   });
+  const close = page.locator("#clear-circle-candidates");
+  const closeBounds = await close.boundingBox();
+  const detectBounds = await page.locator("#detect-circles").boundingBox();
+  assert(closeBounds && detectBounds);
+  assert(Math.abs(closeBounds.width - detectBounds.width) < 1);
+  await close.focus();
+  await page.keyboard.press("Enter");
+  await expect(candidates).toHaveCount(0);
+  await expect(outlines).toHaveCount(0);
+  await expect(reference).toHaveCount(1);
+  await expect(guides).toHaveCount(1);
+  await expect(page.locator("#circle-detection-status")).toBeEmpty();
+  await expect(page.locator("#circle-detection-status")).toHaveAttribute(
+    "data-empty",
+    "false",
+  );
+  await page.locator("#detect-circles").click();
+  await expect(candidates).toHaveCount(2);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.locator("#menu-trigger").click();
   await page.locator("#show-advanced").check();
   await page.keyboard.press("Escape");
-  await page.locator("#pitch-angle").fill("35");
+  await page.locator("#pitch-angle").fill("28.28");
   await page.locator('#projection-settings button[type="submit"]').click();
   await expect(candidates).toHaveCount(0);
   await expect(outlines).toHaveCount(0);
+  await page.locator("#detect-circles").click();
+  await expect(page.locator("#circle-detection")).toHaveAttribute(
+    "data-backend",
+    "simd",
+  );
+  await page
+    .locator("#pitch-angle")
+    .fill(String(DEFAULT_CALIBRATION.elevationDegrees));
+  await page.locator('#projection-settings button[type="submit"]').click();
+  await page.locator("#detect-circles").click();
+  await expect(candidates).toHaveCount(2);
+  assert.deepEqual(
+    await outlines
+      .locator("path:first-child")
+      .evaluateAll((nodes) => nodes.map((n) => n.getAttribute("d"))),
+    shape,
+  );
 
   // Hold the asset request to exercise cancellation and stale result rejection deterministically.
   await page.locator("#file").setInputFiles(payload);
@@ -160,5 +196,33 @@ export async function checkCircleDetection(page: Page, engine: string) {
   await expect(page.locator("#detect-circles")).toBeEnabled();
   await expect(candidates).toHaveCount(0);
   await expect(page.locator("#cancel-circle-detection")).toHaveCount(0);
+
+  const blank = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 320;
+    canvas.height = 200;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas 2D unavailable");
+    ctx.fillStyle = "#334455";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/png").split(",")[1];
+  });
+  await page.locator("#file").setInputFiles({
+    name: "no-circles.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(blank, "base64"),
+  });
+  await page.locator("#detect-circles").click();
+  const status = page.locator("#circle-detection-status");
+  await expect(status).toHaveAttribute("data-empty", "true");
+  await expect(status).toHaveAttribute("aria-busy", "false");
+  await expect(status).toBeVisible();
+  await expect(status).toContainText("円を検出できませんでした。");
+  await expect(candidates).toHaveCount(0);
+  await expect(close).toHaveCount(0);
+  await page.screenshot({
+    path: `test-results/${engine}-circle-empty.png`,
+    fullPage: true,
+  });
   assert.deepEqual(errors, []);
 }

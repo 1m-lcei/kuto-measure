@@ -1024,7 +1024,7 @@ const selectionTitles = {
                 type="number"
                 min="0"
                 max="90"
-                step="any"
+                step="0.01"
                 required
                 aria-describedby="pitch-hint"
                 bind:value={pitch}
@@ -1041,7 +1041,7 @@ const selectionTitles = {
                 type="number"
                 min="0"
                 max="180"
-                step="any"
+                step="0.01"
                 required
                 aria-describedby="fov-hint"
                 bind:value={fov}
@@ -1056,7 +1056,7 @@ const selectionTitles = {
                 id="roll-angle"
                 name="roll"
                 type="number"
-                step="any"
+                step="0.01"
                 required
                 aria-describedby="roll-hint"
                 bind:value={roll}
@@ -1074,7 +1074,7 @@ const selectionTitles = {
                   type="number"
                   min="0"
                   max="1"
-                  step="any"
+                  step="0.01"
                   required
                   aria-describedby="principal-hint"
                   bind:value={principalX}
@@ -1088,7 +1088,7 @@ const selectionTitles = {
                   type="number"
                   min="0"
                   max="1"
-                  step="any"
+                  step="0.01"
                   required
                   aria-describedby="principal-hint"
                   bind:value={principalY}

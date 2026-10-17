@@ -657,6 +657,22 @@ try {
       await page.keyboard.press("Escape");
       const initialPin = await circlePosition(page, pinKeys[0]);
       const initialPng = await png(page);
+      for (const id of [
+        "pitch-angle",
+        "vertical-fov",
+        "roll-angle",
+        "principal-x",
+        "principal-y",
+      ]) {
+        const input = page.locator(`#${id}`);
+        const before = await input.inputValue();
+        await input.press("ArrowUp");
+        await expect(input).toHaveValue(
+          String(Number((Number(before) + 0.01).toFixed(2))),
+        );
+        await input.press("ArrowDown");
+        await expect(input).toHaveValue(before);
+      }
       for (const [id, value] of [
         ["pitch-angle", "35"],
         ["vertical-fov", "12"],

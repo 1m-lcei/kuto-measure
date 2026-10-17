@@ -813,12 +813,14 @@ describe("perspective geometry", () => {
       p,
     );
     if (!center) throw Error("missing center");
-    const circle = projectCircle(
-      center,
-      rangeCalibration.radiusGround,
-      p,
-      0.05,
-    );
+    // Ground radius depends on the camera; refit it from the fixed image-space arc.
+    const radiusGround =
+      rangeCalibration.arcPoints.reduce((sum, [x, y]) => {
+        const point = imageToGround(imagePoint(x, y), p);
+        assert(point);
+        return sum + distance(center, point);
+      }, 0) / rangeCalibration.arcPoints.length;
+    const circle = projectCircle(center, radiusGround, p, 0.05);
     if (!circle) throw Error("missing circle");
     const errors = rangeCalibration.arcPoints.map(([x, y]) => {
       return Math.min(

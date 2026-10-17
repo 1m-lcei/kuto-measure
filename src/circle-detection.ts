@@ -67,6 +67,20 @@ function fitCircle(points: readonly EdgePoint[]): CircleFit | null {
     : null;
 }
 
+function fitNormalCircle(a: Edge, b: Edge): CircleFit | null {
+  const dx = b.x - a.x,
+    dy = b.y - a.y,
+    denominator = 2 * (dx * a.nx + dy * a.ny);
+  if (Math.abs(denominator) < Math.hypot(dx, dy) * 0.2) return null;
+  const offset = (dx * dx + dy * dy) / denominator;
+  if (!Number.isFinite(offset)) return null;
+  return {
+    x: a.x + offset * a.nx,
+    y: a.y + offset * a.ny,
+    radius: Math.abs(offset),
+  };
+}
+
 export function detectCircles(
   pixels: Pick<ImageData, "width" | "height" | "data">,
   projection: Projection,
@@ -240,20 +254,24 @@ export function detectCircles(
       candidates[duplicate] = result;
   }
   // shortcut: bounded contour sampling targets visible outlines; use multiscale fitting if tiny/dense circles are needed.
-  for (const component of components
-    .sort((a, b) => b.length - a.length)
-    .slice(0, 160)) {
+  const contours = components.sort((a, b) => b.length - a.length).slice(0, 160);
+  for (const component of contours) search(component, false);
+  // Merged contours need fewer same-circle samples; keep the original search sequence intact.
+  for (const component of contours)
+    if (component.length > 512) search(component, true);
+
+  function search(component: Edge[], useNormals: boolean) {
     let points = sample(component, 512);
     for (let round = 0; round < 3 && points.length >= 20; round++) {
       const score = circleScorer(points, simd);
       let best = fitCircle(points),
         bestScore = best ? score(best) : 0;
-      for (let trial = 0; trial < 96; trial++) {
-        const circle = fitCircle([
-          points[random(points.length)],
-          points[random(points.length)],
-          points[random(points.length)],
-        ]);
+      for (let trial = 0; trial < (useNormals ? 384 : 96); trial++) {
+        const a = points[random(points.length)],
+          b = points[random(points.length)];
+        const circle = useNormals
+          ? fitNormalCircle(a, b)
+          : fitCircle([a, b, points[random(points.length)]]);
         if (!circle) continue;
         const count = score(circle);
         if (count > bestScore) {
@@ -371,7 +389,7 @@ export function detectCircles(
         const peak = intensity(d);
         if (peak <= Math.max(intensity(d - 0.5), intensity(d + 0.5)) + 0.25)
           continue;
-        const value = peak - (intensity(d - 2) + intensity(d + 2)) / 2;
+        const value = peak - (intensity(d - 1) + intensity(d + 1)) / 2;
         if (value > best) {
           best = value;
           offset = d;
@@ -419,6 +437,11 @@ export function detectCircles(
       !circleValid(center, fit.radius, projection)
     )
       return candidate;
-    return { ...candidate, center, radiusGround: groundLength(fit.radius) };
+    const result = {
+      ...candidate,
+      center,
+      radiusGround: groundLength(fit.radius),
+    };
+    return hasContourSupport(result) ? result : candidate;
   }
 }
