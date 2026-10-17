@@ -27,3 +27,4 @@
 | 校正値の根拠・過去の画像比較 | [校正の記録](calibration/README.md) |
 | Svelte移行の経緯・移行前後の比較 | [Svelte移行の検証記録](svelte-migration.md) |
 | ホバー判定の代替案・旧判定との比較・性能測定 | [ホバー判定の検証記録](hover-performance.md) |
+| ラベル配置のSIMD適用・旧判定との比較・性能測定 | [ラベル配置の検証記録](label-performance.md) |

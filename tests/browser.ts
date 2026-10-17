@@ -9,6 +9,7 @@ import { checkGameArea } from "./game-area";
 import { checkHover } from "./hover";
 import { checkImageLoading } from "./image-loading";
 import { checkInteractions } from "./interactions";
+import { checkLabelBackends } from "./label-browser";
 import { checkProject } from "./project";
 import { checkReactivity } from "./reactivity";
 import { checkTouch } from "./touch";
@@ -1084,6 +1085,13 @@ try {
       await expect(page.locator("#projection-fields")).toBeHidden();
       await checkInteractions(page, name, await imagePayload(page));
       await checkGameArea(page, name, await imagePayload(page));
+      const labelsPage = await context.newPage();
+      try {
+        await labelsPage.goto(page.url());
+        await checkLabelBackends(labelsPage, await imagePayload(labelsPage));
+      } finally {
+        await labelsPage.close();
+      }
       const circlesPage = await context.newPage();
       try {
         await circlesPage.goto(page.url());

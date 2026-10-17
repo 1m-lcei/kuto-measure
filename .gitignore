@@ -1,6 +1,7 @@
 node_modules/
 dist/
 src/circle-score.wasm
+src/label-score.wasm
 test-results/
 *.local
 .DS_Store

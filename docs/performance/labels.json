@@ -1,0 +1,84 @@
+{
+  "browser": "153.0.8010.12",
+  "cpu": "AMD Ryzen 7 9700X 8-Core Processor             ",
+  "platform": "win32",
+  "arch": "x64",
+  "note": "Generated 24/240-pin documents with 8/80 measurements and 4/13 circles; layout only including text measurement, buffer packing and WASM calls. At least three warmups and 250ms per variant, five rotating-order rounds of >=80ms; milliseconds per layout. Module fetch/init and DOM rendering excluded. Exact layout parity checked before timing.",
+  "results": [
+    {
+      "pins": 24,
+      "labels": 36,
+      "strokes": 150,
+      "checksum": 10692,
+      "variants": [
+        {
+          "backend": "original",
+          "medianMs": 7.5,
+          "minMs": 7.1083333333954215,
+          "maxMs": 7.690909091044556,
+          "samples": [
+            7.690909091044556, 7.5, 7.536363636228171, 7.309090909294107,
+            7.1083333333954215
+          ]
+        },
+        {
+          "backend": "javascript",
+          "medianMs": 3.8952380952735743,
+          "minMs": 3.8238095238450027,
+          "maxMs": 3.957142857213815,
+          "samples": [
+            3.8952380952735743, 3.8714285712866556, 3.94761904754809,
+            3.8238095238450027, 3.957142857213815
+          ]
+        },
+        {
+          "backend": "simd",
+          "medianMs": 3.014814814897599,
+          "minMs": 2.9285714285714284,
+          "maxMs": 3.0666666666942612,
+          "samples": [
+            2.9925925926201873, 3.0666666666942612, 3.014814814897599,
+            3.051851851796662, 2.9285714285714284
+          ]
+        }
+      ]
+    },
+    {
+      "pins": 240,
+      "labels": 333,
+      "strokes": 510,
+      "checksum": 4995,
+      "variants": [
+        {
+          "backend": "original",
+          "medianMs": 840.7999999970198,
+          "minMs": 821.1000000014901,
+          "maxMs": 867.6999999992549,
+          "samples": [
+            821.1000000014901, 867.6999999992549, 865, 837, 840.7999999970198
+          ]
+        },
+        {
+          "backend": "javascript",
+          "medianMs": 382.30000000074506,
+          "minMs": 373,
+          "maxMs": 446.30000000074506,
+          "samples": [
+            393.69999999925494, 373, 446.30000000074506, 381.30000000074506,
+            382.30000000074506
+          ]
+        },
+        {
+          "backend": "simd",
+          "medianMs": 339.19999999925494,
+          "minMs": 320.6000000014901,
+          "maxMs": 359.1000000014901,
+          "samples": [
+            339.19999999925494, 359.1000000014901, 335.5999999977648,
+            353.69999999925494, 320.6000000014901
+          ]
+        }
+      ]
+    }
+  ]
+}

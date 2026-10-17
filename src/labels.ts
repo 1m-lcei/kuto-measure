@@ -1,4 +1,14 @@
 import type { ImagePoint, ImageRect } from "./geometry";
+import {
+  type LabelLine,
+  type LabelSimd,
+  labelSimd,
+  labelStrokeScorer,
+  lineHitsRect,
+  linesOverlap,
+} from "./label-score";
+
+export { type LabelLine, lineHitsRect } from "./label-score";
 
 export const LABEL_FONT = "12px system-ui, sans-serif";
 export const DENSE_LABELS =
@@ -42,10 +52,6 @@ export interface LabelBox extends ImageRect {
   leader: LabelLine | null;
 }
 type Point = Pick<ImagePoint, "x" | "y">;
-export interface LabelLine {
-  start: Point;
-  end: Point;
-}
 export const overlapArea = (a: ImageRect, b: ImageRect, gap = 0): number =>
   Math.max(
     0,
@@ -56,49 +62,6 @@ export const overlapArea = (a: ImageRect, b: ImageRect, gap = 0): number =>
     Math.min(a.y + a.height + gap, b.y + b.height) - Math.max(a.y - gap, b.y),
   );
 
-// Clip a segment against the padded rectangle (including parallel/zero-length lines).
-export function lineHitsRect(
-  line: LabelLine,
-  rect: ImageRect,
-  gap = 0,
-): boolean {
-  let low = 0,
-    high = 1;
-  for (const axis of ["x", "y"] as const) {
-    const start = line.start[axis],
-      delta = line.end[axis] - start,
-      min = rect[axis] - gap,
-      max = rect[axis] + (axis === "x" ? rect.width : rect.height) + gap;
-    if (Math.abs(delta) < 1e-9) {
-      if (start < min || start > max) return false;
-    } else {
-      const a = (min - start) / delta,
-        b = (max - start) / delta;
-      low = Math.max(low, Math.min(a, b));
-      high = Math.min(high, Math.max(a, b));
-      if (low > high) return false;
-    }
-  }
-  return true;
-}
-
-function linesOverlap(a: LabelLine, b: LabelLine): boolean {
-  const dx = b.end.x - b.start.x,
-    dy = b.end.y - b.start.y,
-    length = Math.hypot(dx, dy);
-  if (length < 1e-9)
-    return lineHitsRect(a, { ...b.start, width: 0, height: 0 }, 2);
-  const local = (p: Point) => ({
-    x: ((p.x - b.start.x) * dx + (p.y - b.start.y) * dy) / length,
-    y: ((p.y - b.start.y) * dx - (p.x - b.start.x) * dy) / length,
-  });
-  return lineHitsRect(
-    { start: local(a.start), end: local(a.end) },
-    { x: 0, y: 0, width: length, height: 0 },
-    2,
-  );
-}
-
 export function layoutLabels(
   labels: readonly Label[],
   area: ImageRect,
@@ -106,6 +69,7 @@ export function layoutLabels(
   obstacles: readonly ImageRect[],
   measure: MeasureLabel,
   lines: readonly LabelLine[] = [],
+  simd: LabelSimd | null = labelSimd ?? null,
 ): { boxes: LabelBox[]; crowded: boolean } {
   const boxes: LabelBox[] = [];
   let crowded = false;
@@ -126,6 +90,7 @@ export function layoutLabels(
     start: scaled(line.start),
     end: scaled(line.end),
   }));
+  const scoreStrokes = labelStrokeScorer(strokes, simd ?? undefined);
   const rank: Record<string, number> = {
     pin: 0,
     group: 1,
@@ -241,11 +206,14 @@ export function layoutLabels(
           crossings++;
         if (overlap * 1000 + crossings * 200 + travel >= bestScore) return;
       }
-      for (const line of strokes) {
-        if (lineHitsRect(line, candidate, 3)) crossings += 4;
-        if (leader && linesOverlap(leader, line)) crossings++;
-        if (overlap * 1000 + crossings * 200 + travel >= bestScore) return;
-      }
+      crossings = scoreStrokes(
+        candidate,
+        leader,
+        crossings,
+        overlap,
+        travel,
+        bestScore,
+      );
       const score = overlap * 1000 + crossings * 200 + travel;
       if (score < bestScore) {
         best = candidate;
