@@ -1,5 +1,5 @@
 <script lang="ts">
-import { tick, untrack } from "svelte";
+import { type Snippet, tick, untrack } from "svelte";
 import {
   circleValid,
   DEFAULT_CALIBRATION,
@@ -44,6 +44,7 @@ let {
   deleteSavedReference,
   resetReference,
   startTool,
+  circleDetection,
   advanced = $bindable(false),
   referenceOpen = $bindable(false),
   dragArea = $bindable(false),
@@ -66,6 +67,7 @@ let {
   deleteSavedReference: () => void;
   resetReference: () => void;
   startTool: (tool: "pin" | "reference") => void;
+  circleDetection: Snippet;
   advanced: boolean;
   referenceOpen?: boolean;
   dragArea?: boolean;
@@ -938,6 +940,7 @@ const selectionTitles = {
       </details>
       <section class="scale-card">
         <h2>距離の基準（任意）</h2>
+        {@render circleDetection()}
         <p id="scale-hint" data-state={scaleState}>
           {scaleHints[scaleState]}
         </p>

@@ -3,6 +3,8 @@ import { onMount, tick, untrack } from "svelte";
 import { on } from "svelte/events";
 import { MediaQuery } from "svelte/reactivity";
 import Annotations from "./Annotations.svelte";
+import CircleDetection from "./CircleDetection.svelte";
+import type { DetectedCircle } from "./circle-detection";
 import Dialog from "./Dialog.svelte";
 import { download, exportPng } from "./export";
 import {
@@ -24,6 +26,7 @@ import {
   inImage,
   inRect,
   type Projection,
+  projectCircle,
 } from "./geometry";
 import Header from "./Header.svelte";
 import { overlappingAnnotations } from "./hover";
@@ -205,6 +208,67 @@ const selected = $derived(
   tool !== "pin" && selection ? selectionKey(selection) : "",
 );
 const scale = $derived(scaleFactor(doc));
+let detectedCircles = $state.raw<DetectedCircle[]>([]);
+const detectedPaths = $derived(
+  projection
+    ? detectedCircles.map((circle) => {
+        const points =
+          projectCircle(circle.center, circle.radiusGround, projection, 0.5)
+            ?.points ?? [];
+        return {
+          path:
+            points
+              .map((point, i) => `${i ? "L" : "M"}${point.x},${point.y}`)
+              .join(" ") + "Z",
+          center: groundToImage(circle.center, projection),
+        };
+      })
+    : [],
+);
+function applyDetectedCircle(
+  circle: DetectedCircle,
+  kind: "reference" | "guide",
+) {
+  try {
+    if (kind === "reference") {
+      if (
+        !editDocument({
+          type: "reference",
+          value: {
+            center: circle.center,
+            radiusGround: circle.radiusGround,
+            radiusGame: null,
+          },
+        })
+      )
+        return;
+      setTool("select");
+      selection = { kind: "reference" };
+      void panels.focusRadius();
+      status("検出した円を基準円にしました。ゲーム内半径を入力してください。");
+    } else {
+      if (!scale) return;
+      const id = crypto.randomUUID();
+      if (
+        !editDocument({
+          type: "guide",
+          value: {
+            id,
+            center: { kind: "point", point: circle.center },
+            radiusGame: gameDistance(circle.radiusGround * scale),
+          },
+        })
+      )
+        return;
+      setTool("select");
+      selection = { kind: "guide", id };
+      referenceOpen = true;
+      status("検出した円を補助円に追加しました。");
+    }
+  } catch (error) {
+    showError(error);
+  }
+}
 const gameSize = $derived.by(() => {
   if (!projection) return "";
   const area = projection.renderArea;
@@ -1517,6 +1581,51 @@ onMount(() => {
                 overlapped={overlapKeys}
                 onwarning={status}
               />
+              {#if referenceOpen && detectedPaths.length}
+                <svg
+                  x={projection.renderArea.x}
+                  y={projection.renderArea.y}
+                  width={projection.renderArea.width}
+                  height={projection.renderArea.height}
+                  viewBox={`${projection.renderArea.x} ${projection.renderArea.y} ${projection.renderArea.width} ${projection.renderArea.height}`}
+                  overflow="hidden"
+                  pointer-events="none"
+                  aria-hidden="true"
+                >
+                  {#each detectedPaths as item, i (i)}
+                    <g data-detected-circle={i}>
+                      <path
+                        d={item.path}
+                        fill="none"
+                        stroke="#12222d"
+                        stroke-width="4"
+                        vector-effect="non-scaling-stroke"
+                      />
+                      <path
+                        d={item.path}
+                        fill="none"
+                        stroke="#ffe466"
+                        stroke-width="2"
+                        stroke-dasharray="6 4"
+                        vector-effect="non-scaling-stroke"
+                      />
+                      {#if item.center}
+                        <text
+                          x={item.center.x}
+                          y={item.center.y}
+                          font-size={16 / view.display.zoom}
+                          fill="#ffe466"
+                          stroke="#12222d"
+                          stroke-width={3 / view.display.zoom}
+                          paint-order="stroke"
+                        >
+                          {i + 1}
+                        </text>
+                      {/if}
+                    </g>
+                  {/each}
+                </svg>
+              {/if}
               {#each areaHandles as { label, side, horizontal, coordinate, min, max, x1, y1, x2, y2 } (side)}
                 <g
                   class="area-handle"
@@ -1716,7 +1825,18 @@ onMount(() => {
       bind:advanced
       bind:referenceOpen
       bind:dragArea
-    />
+    >
+      {#snippet circleDetection()}
+        <CircleDetection
+          {resource}
+          {projection}
+          {loading}
+          {scale}
+          apply={applyDetectedCircle}
+          bind:circles={detectedCircles}
+        />
+      {/snippet}
+    </Panels>
   </div>
   <footer class="statusbar">
     <p id="status" role="status" aria-live="polite">{statusMessage}</p>

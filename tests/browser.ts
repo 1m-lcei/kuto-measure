@@ -4,6 +4,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { chromium, firefox, type Page, webkit } from "playwright";
 import { expect } from "playwright/test";
+import { checkCircleDetection } from "./circle-detection-browser";
 import { checkGameArea } from "./game-area";
 import { checkHover } from "./hover";
 import { checkImageLoading } from "./image-loading";
@@ -1067,6 +1068,13 @@ try {
       await expect(page.locator("#projection-fields")).toBeHidden();
       await checkInteractions(page, name, await imagePayload(page));
       await checkGameArea(page, name, await imagePayload(page));
+      const circlesPage = await context.newPage();
+      try {
+        await circlesPage.goto(page.url());
+        await checkCircleDetection(circlesPage, name);
+      } finally {
+        await circlesPage.close();
+      }
       const hoverPage = await context.newPage();
       try {
         await hoverPage.goto(page.url());
