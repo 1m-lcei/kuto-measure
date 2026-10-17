@@ -24,6 +24,7 @@ let busy = $state(false),
   message = $state(""),
   error = $state("");
 let backend = $state("");
+const emptyResult = $derived(Boolean(backend && !circles.length && message));
 function cancel() {
   worker?.terminate();
   worker = null;
@@ -96,7 +97,7 @@ function detect() {
       backend = event.data.simd ? "simd" : "javascript";
       message = circles.length
         ? `${circles.length}個の候補が見つかりました。画像と重なりを確認して選んでください。`
-        : "円を検出できませんでした。ゲーム領域とカメラ設定を確認するか、手動で円を合わせてください。";
+        : "円を検出できませんでした";
     };
     current.onerror = (event) => {
       event.preventDefault();
@@ -152,8 +153,23 @@ function detect() {
     id="circle-detection-status"
     role="status"
     aria-busy={busy}
-    data-empty={Boolean(backend && !circles.length && message)}
+    data-empty={emptyResult}
   >
+    {#if emptyResult}
+      <svg
+        aria-hidden="true"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M12 3 2 21h20L12 3Z M12 9v5 M12 17h.01" />
+      </svg>
+    {/if}
     {message}
   </p>
   {#if error}
@@ -213,11 +229,11 @@ function detect() {
 <style>
 #circle-detection-status[data-empty="true"] {
   margin-block-start: 8px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-inline-start: 3px solid var(--accent);
-  border-radius: 6px;
-  background: var(--soft);
+  color: light-dark(#854d0e, #fcd34d);
+}
+#circle-detection-status svg {
+  margin-inline-end: 4px;
+  vertical-align: -0.15em;
 }
 .experimental-badge {
   display: inline-block;

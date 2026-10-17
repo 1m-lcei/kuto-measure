@@ -141,6 +141,7 @@ export async function checkCircleDetection(page: Page, engine: string) {
   await expect(reference).toHaveCount(1);
   await expect(guides).toHaveCount(1);
   await expect(page.locator("#circle-detection-status")).toBeEmpty();
+  await expect(page.locator("#circle-detection-status svg")).toHaveCount(0);
   await expect(page.locator("#circle-detection-status")).toHaveAttribute(
     "data-empty",
     "false",
@@ -217,7 +218,18 @@ export async function checkCircleDetection(page: Page, engine: string) {
   await expect(status).toHaveAttribute("data-empty", "true");
   await expect(status).toHaveAttribute("aria-busy", "false");
   await expect(status).toBeVisible();
-  await expect(status).toContainText("円を検出できませんでした。");
+  await expect(status).toHaveText("円を検出できませんでした");
+  const warningColor = await page
+    .locator(".experimental-badge")
+    .evaluate((el) => {
+      const style = getComputedStyle(el);
+      return style.color;
+    });
+  await expect(status).toHaveCSS("color", warningColor);
+  await expect(status).toHaveCSS("border-left-style", "none");
+  await expect(status).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(status.locator("svg")).toBeVisible();
+  await expect(status.locator("svg")).toHaveAttribute("aria-hidden", "true");
   await expect(candidates).toHaveCount(0);
   await expect(close).toHaveCount(0);
   await page.screenshot({
