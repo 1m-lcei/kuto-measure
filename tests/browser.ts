@@ -14,6 +14,7 @@ import { checkProject } from "./project";
 import { checkReactivity } from "./reactivity";
 import { checkTouch } from "./touch";
 
+const appName = "（主に）対抗戦のマップけーそくツール";
 const { version } = JSON.parse(
   await readFile(new URL("../package.json", import.meta.url), "utf8"),
 );
@@ -174,6 +175,8 @@ try {
     page.on("dialog", (d) => void d.accept());
     try {
       await page.goto(`http://127.0.0.1:${server.port}/nested/`);
+      await expect(page).toHaveTitle(appName);
+      await expect(page.locator(".brand")).toHaveText(appName);
       await expect(modes.locator('[data-tool="pin"]')).toHaveAttribute(
         "aria-pressed",
         "true",
@@ -213,6 +216,14 @@ try {
       for (const width of [1440, 780, 779, 480, 390, 360, 320, 1440]) {
         await page.locator("#theme-toggle").focus();
         await page.setViewportSize({ width, height: 1000 });
+        assert(
+          await page.evaluate(
+            () =>
+              document.documentElement.scrollWidth <=
+              document.documentElement.clientWidth,
+          ),
+          `Layout overflows horizontally at ${width}px`,
+        );
         assert.deepEqual(
           await page
             .locator(".zoom-tools button")
@@ -318,6 +329,7 @@ try {
       await page.locator("#menu-trigger").click();
       await page.locator("#about-trigger").click();
       await expect(page.locator("#about")).toBeVisible();
+      await expect(page.locator("#about-title")).toHaveText(appName);
       const portalLink = page.locator(
         '#about a[href="https://1m-lcei.github.io/"]',
       );

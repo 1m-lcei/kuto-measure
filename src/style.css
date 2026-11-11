@@ -293,7 +293,6 @@
     text-decoration: none;
     font-size: 19px;
     letter-spacing: -0.5px;
-    white-space: nowrap;
   }
   .brand strong {
     font-weight: 750;
@@ -314,6 +313,7 @@
   }
   .header-actions {
     gap: 10px;
+    flex-shrink: 0;
   }
   main {
     padding: 26px 32px 10px;

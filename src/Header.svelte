@@ -94,7 +94,7 @@ export function closeMenu() {
             width="32"
             height="32"
           >
-          <span>Kuto <strong>Measure</strong></span>
+          <span>（主に）対抗戦のマップけーそくツール</span>
         </h1>
         <p class="release-label">β版</p>
       </hgroup>
@@ -362,7 +362,7 @@ export function closeMenu() {
       width="64"
       height="64"
     >
-    <h2 id="about-title">Kuto Measure</h2>
+    <h2 id="about-title">（主に）対抗戦のマップけーそくツール</h2>
   </div>
   <p id="app-version" class="muted">
     バージョン
