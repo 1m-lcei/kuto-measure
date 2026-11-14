@@ -1642,7 +1642,7 @@ onMount(() => {
             <div class="empty-steps">
               <span><b>01</b> 画像を確認する</span>
               <span><b>02</b> ピンを置く</span>
-              <span><b>03</b> 距離を測る</span>
+              <span><b>03</b> 距離線を繋ぐ</span>
             </div>
           </div>
           <ul class="screenshot-hint">

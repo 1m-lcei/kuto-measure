@@ -610,7 +610,7 @@ const selectionTitles = {
       <section id="measure-panel">
         <div class="section-title"><h2>対象を指定して測る</h2></div>
         <p class="muted" hidden={endpoints.length >= 2}>
-          画像上にピンを2つ置くと測定できます。
+          画像上にピンを2つ置き、距離線で繋ぐと測定できます。
         </p>
         <button
           type="button"
