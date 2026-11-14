@@ -1,6 +1,7 @@
 @layer base, layout, controls, canvas, panels;
 @layer canvas {
-  #overlay .candidate {
+  #overlay .candidate,
+  #overlay [data-parallel-highlight="true"] {
     filter: drop-shadow(0 0 var(--hover-inner, 1px) #fff)
       drop-shadow(0 0 var(--hover-outer, 2px) #101828);
   }
@@ -27,6 +28,42 @@
   }
 }
 @layer controls {
+  .parallel-options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    font-size: 12px;
+  }
+  @media (width >= 780px) {
+    .parallel-options {
+      margin-inline-end: auto;
+    }
+  }
+  .parallel-options label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    margin: 0;
+    cursor: pointer;
+  }
+  .parallel-options input {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    min-height: 16px;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--accent);
+  }
+  .parallel-options span {
+    flex: none;
+    width: 11em;
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 11px;
+  }
   .saved-reference > p {
     margin-block: 0.5rem;
   }
@@ -348,6 +385,7 @@
     justify-content: space-between;
     gap: 12px;
     margin-bottom: 12px;
+    flex-wrap: wrap;
   }
   .layout {
     display: grid;

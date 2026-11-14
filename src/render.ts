@@ -36,7 +36,7 @@ export function renderAnnotations(
   const lines = scene.lines
     .map(
       (l) =>
-        `<g><line x1="${l.start.x}" y1="${l.start.y}" x2="${l.end.x}" y2="${l.end.y}" ${stroke("#56c7e9")}/></g>`,
+        `<g><line x1="${l.start.x}" y1="${l.start.y}" x2="${l.end.x}" y2="${l.end.y}" ${stroke("#56c7e9")}/>${l.parallelPath ? `<path data-part="parallel-mark" d="${l.parallelPath}" ${stroke("#17313e", 4)} stroke-linejoin="round"/><path d="${l.parallelPath}" ${stroke("#56c7e9")} stroke-linejoin="round"/>` : ""}</g>`,
     )
     .join("");
   const markers = scene.markers

@@ -57,6 +57,7 @@ import {
   undo,
 } from "./model";
 import Panels from "./Panels.svelte";
+import { type SnapPair, snapPin, translateMeasurement } from "./parallel";
 
 import { fitProjectArea, parseProject, serializeProject } from "./project";
 
@@ -74,8 +75,10 @@ interface Drag {
   pointerId: number;
   startClient: { x: number; y: number };
   startGround: GroundPoint | null;
+  currentGround: GroundPoint | null;
   base: AnalysisDocument;
   preview: AnalysisDocument;
+  rawPreview: AnalysisDocument;
   target: Selection | null;
   handle: string | null;
   label: boolean;
@@ -109,6 +112,10 @@ let selection = $state.raw<Selection | null>(null),
   drag = $state.raw<Drag | null>(null),
   space = $state(false);
 let preview = $state.raw<AnalysisDocument | null>(null);
+const parallelSnapKey = "kuto-measure.parallel-snap";
+let parallelSnap = $state(true),
+  shiftPressed = $state(false);
+let snapPair = $state.raw<SnapPair | null>(null);
 const touches = new Map<number, ClientPoint>();
 const TOUCH_SLOP = 8;
 let touchNavigation = false;
@@ -295,7 +302,7 @@ $effect(() => {
 });
 const modeHints: Record<Tool, string> = {
   select:
-    "ドラッグで表示位置を移動、クリック・タップで対象を選択。選択済みのピンやハンドルはドラッグで調整できます。",
+    "クリック・タップで選択。選択済みのピン・距離線・ハンドルはドラッグや矢印キーで移動できます。距離線は両端を一緒に動かします。",
   pin: "画像上をクリックしてピンを配置します。",
   reference: "円の中心、円周の点を順に指定してください。",
   measure: "2つのピンまたはグループ中心を選択してください。",
@@ -321,6 +328,7 @@ function queueDrag(event: PointerEvent) {
   if (touches.has(event.pointerId))
     touches.set(event.pointerId, clientPoint(event.clientX, event.clientY));
   if (!drag && !pinch) return;
+  if (drag?.pointerId === event.pointerId) shiftPressed = event.shiftKey;
   pendingMove = event;
   schedule();
 }
@@ -346,6 +354,22 @@ function readSavedReference() {
     if (raw !== null) savedPreset = parseReferencePreset(raw);
   } catch (e) {
     presetError = `保存した基準を読み込めません。${e instanceof Error ? e.message : String(e)}`;
+  }
+}
+function readParallelSnap() {
+  try {
+    parallelSnap = localStorage.getItem(parallelSnapKey) !== "false";
+  } catch {
+    parallelSnap = true;
+  }
+}
+function setParallelSnap(enabled: boolean) {
+  parallelSnap = enabled;
+  refreshDragPreview();
+  try {
+    localStorage.setItem(parallelSnapKey, String(enabled));
+  } catch {
+    status("平行スナップの設定を保存できません。このタブでのみ適用します。");
   }
 }
 function hasEdits() {
@@ -635,11 +659,11 @@ function moveEdit(
   current: GroundPoint,
 ): AnalysisDocument | null {
   if (!projection) return null;
+  const delta = groundPoint(current.x - start.x, current.y - start.y);
+  if (target.kind === "measurement")
+    return translateMeasurement(base, target.id, delta, projection);
   const translate = (point: GroundPoint) =>
-    groundPoint(
-      point.x + (current.x - start.x),
-      point.y + (current.y - start.y),
-    );
+    groundPoint(point.x + delta.x, point.y + delta.y);
   let edit: Edit | null = null;
   if (target.kind === "pin") {
     const p = base.pins.find((p) => p.id === target.id);
@@ -689,6 +713,67 @@ function moveEdit(
     if (!projected || !inRect(projected, projection.renderArea)) return null;
   }
   return next;
+}
+function refreshDragPreview() {
+  const d = drag;
+  if (
+    !d ||
+    !d.moved ||
+    d.pan ||
+    d.label ||
+    d.area ||
+    tool !== "select" ||
+    !d.target ||
+    !d.startGround ||
+    !projection
+  )
+    return;
+  const previousPair = snapPair;
+  snapPair = null;
+  let next =
+    d.currentGround &&
+    moveEdit(d.base, d.target, d.handle, d.startGround, d.currentGround);
+  if (!next) {
+    d.preview = d.rawPreview;
+    schedule();
+    return;
+  }
+  d.rawPreview = next;
+  if (d.target.kind === "pin" && parallelSnap && !shiftPressed) {
+    const pinId = d.target.id;
+    const pin = next.pins.find((pin) => pin.id === pinId);
+    const snapped =
+      pin &&
+      snapPin(
+        d.base,
+        pin.id,
+        pin.point,
+        projection,
+        view.state.zoom,
+        previousPair,
+      );
+    if (pin && snapped) {
+      next = applyEdit(next, {
+        type: "pin",
+        value: { ...pin, point: snapped.point },
+      });
+      snapPair = {
+        movingId: snapped.movingId,
+        referenceId: snapped.referenceId,
+      };
+    }
+  }
+  d.preview = next;
+  schedule();
+}
+function setShiftPressed(pressed: boolean) {
+  if (shiftPressed === pressed) return;
+  shiftPressed = pressed;
+  if (pendingMove) {
+    const event = pendingMove;
+    pendingMove = null;
+    updateDrag(event);
+  } else refreshDragPreview();
 }
 function resizeArea(side: number, coordinate: number, bounds: ImageRect) {
   if (!projection) return;
@@ -750,16 +835,12 @@ function updateDrag(event: PointerEvent) {
   }
   if (d.label) return;
   if (!d.moved || tool !== "select" || !d.target || !d.startGround) return;
-  const current = groundAt(pointAt(event.clientX, event.clientY));
-  if (!current) return;
-  const next = moveEdit(d.base, d.target, d.handle, d.startGround, current);
-  if (next !== null) {
-    d.preview = next;
-    schedule();
-  }
+  d.currentGround = groundAt(pointAt(event.clientX, event.clientY));
+  refreshDragPreview();
 }
 function finishDrag(cancel: boolean, event?: PointerEvent) {
   pendingMove = null;
+  snapPair = null;
   if (cancel) {
     pinch = null;
     touchSample = null;
@@ -792,6 +873,7 @@ function finishDrag(cancel: boolean, event?: PointerEvent) {
   view.flush();
 }
 function keyboardMove(event: KeyboardEvent) {
+  if (drag) return;
   if (
     event.target instanceof Element &&
     event.target.closest('[data-part="label"]')
@@ -845,7 +927,15 @@ function keyboardMove(event: KeyboardEvent) {
       );
   } else if (selection.kind === "pin" || selection.kind === "group")
     start = resolveCenter(history.present, selection);
-  else if (selection.kind === "reference")
+  else if (selection.kind === "measurement") {
+    const measurementId = selection.id;
+    const measurement = history.present.measurements.find(
+      (m) => m.id === measurementId,
+    );
+    const a = measurement && resolveCenter(history.present, measurement.from),
+      b = measurement && resolveCenter(history.present, measurement.to);
+    if (a && b) start = groundPoint((a.x + b.x) / 2, (a.y + b.y) / 2);
+  } else if (selection.kind === "reference")
     start = history.present.reference?.center ?? null;
   else if (selection.kind === "guide") {
     const guide = history.present.guides.find(
@@ -1021,6 +1111,7 @@ const onPointerDown = (event: PointerEvent) => {
     clearHover();
   }
   if (drag || touchNavigation || !event.isPrimary) return;
+  shiftPressed = event.shiftKey;
   event.preventDefault();
   const node = event.target instanceof Element ? event.target : null;
   const areaHandle =
@@ -1037,7 +1128,8 @@ const onPointerDown = (event: PointerEvent) => {
       node?.closest("[data-part]")?.getAttribute("data-part") === "label",
     handle =
       node?.closest("[data-handle]")?.getAttribute("data-handle") ?? null;
-  const start = pointAt(event.clientX, event.clientY);
+  const start = pointAt(event.clientX, event.clientY),
+    startGround = groundAt(start);
   const selected =
     target && selection && selectionKey(target) === selectionKey(selection);
   const movable = node?.closest("[data-movable], [data-handle]");
@@ -1052,9 +1144,11 @@ const onPointerDown = (event: PointerEvent) => {
   drag = {
     pointerId: event.pointerId,
     startClient: { x: event.clientX, y: event.clientY },
-    startGround: groundAt(start),
+    startGround,
+    currentGround: startGround,
     base: history.present,
     preview: history.present,
+    rawPreview: history.present,
     target,
     handle,
     label,
@@ -1081,6 +1175,7 @@ const onFocusIn = () => {
   updateHover();
 };
 const onPointerUp = (event: PointerEvent) => {
+  shiftPressed = event.shiftKey;
   updateDrag(event);
   updatePinch();
   if (touches.delete(event.pointerId)) {
@@ -1105,6 +1200,7 @@ const onLostCapture = (event: PointerEvent) => {
 };
 const onBlur = () => {
   space = false;
+  shiftPressed = false;
   clearHover();
   finishDrag(true);
   for (const id of touches.keys())
@@ -1114,6 +1210,7 @@ const onBlur = () => {
 };
 const onKeyDown = (event: KeyboardEvent) => {
   if (loading) return;
+  if (event.key === "Shift") setShiftPressed(true);
   if (event.key === "Tab") {
     hoverPoint = null;
     keyboardHover = true;
@@ -1211,6 +1308,7 @@ const onKeyDown = (event: KeyboardEvent) => {
   }
 };
 const onKeyUp = (event: KeyboardEvent) => {
+  if (event.key === "Shift") setShiftPressed(false);
   if (event.code === "Space") {
     space = false;
   }
@@ -1343,6 +1441,10 @@ const resetReference = () => {
   });
 };
 const onStorage = (event: StorageEvent) => {
+  if (event.key === parallelSnapKey || event.key === null) {
+    readParallelSnap();
+    refreshDragPreview();
+  }
   if (event.key === presetKey || event.key === null) {
     readSavedReference();
   }
@@ -1391,6 +1493,7 @@ function onTouch(event: TouchEvent) {
 }
 onMount(() => {
   readSavedReference();
+  readParallelSnap();
   const observer = new ResizeObserver(() => view.resize());
   observer.observe(viewport, { box: "border-box" });
   const off = on(viewport, "wheel", view.wheel, { passive: false });
@@ -1454,6 +1557,22 @@ onMount(() => {
         </button>
       {/each}
     </fieldset>
+    <div class="parallel-options" hidden={tool !== "select"}>
+      <label for="parallel-snap">
+        <input
+          id="parallel-snap"
+          type="checkbox"
+          checked={parallelSnap}
+          disabled={loading || !projection}
+          aria-describedby="parallel-snap-hint"
+          onchange={(event) => setParallelSnap(event.currentTarget.checked)}
+        >
+        平行スナップ
+      </label>
+      <span id="parallel-snap-hint">
+        {parallelSnap && shiftPressed ? "Shiftで一時解除中" : "Shiftで一時解除"}
+      </span>
+    </div>
     <div class="history-tools">
       <button
         type="button"
@@ -1579,6 +1698,7 @@ onMount(() => {
                 {areaPreview}
                 {candidate}
                 overlapped={overlapKeys}
+                {snapPair}
                 onwarning={status}
               />
               {#if referenceOpen && detectedPaths.length}

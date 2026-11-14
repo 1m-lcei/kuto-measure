@@ -14,6 +14,7 @@ import {
 import type { ImagePoint, ImageRect, Projection } from "./geometry";
 import type { MeasureLabel } from "./labels";
 import type { AnalysisDocument } from "./model";
+import type { SnapPair } from "./parallel";
 
 let {
   doc,
@@ -29,6 +30,7 @@ let {
   areaPreview,
   candidate,
   overlapped,
+  snapPair,
   onwarning,
 }: {
   doc: AnalysisDocument;
@@ -44,6 +46,7 @@ let {
   areaPreview: ImageRect | null;
   candidate: string | null;
   overlapped: ReadonlySet<string>;
+  snapPair: SnapPair | null;
   onwarning: (message: string) => void;
 } = $props();
 const scene = $derived(
@@ -52,6 +55,17 @@ const scene = $derived(
 const controls = $derived(referenceHandles(doc, p, selected, scene, visible));
 const boundary = $derived(boundaryPath(p));
 const hit = $derived((coarse ? 22 : 16) / z);
+const parallelHighlights = $derived.by(() => {
+  if (snapPair)
+    return new Set([
+      `measurement:${snapPair.movingId}`,
+      `measurement:${snapPair.referenceId}`,
+    ]);
+  const line = scene.lines.find((line) => line.key === selected);
+  return new Set(
+    line?.parallelKeys.length ? [selected, ...line.parallelKeys] : [],
+  );
+});
 $effect(() => {
   const warning = scene.warnings[0];
   if (warning) untrack(() => onwarning(warning));
@@ -200,10 +214,12 @@ $effect(() => {
     <g
       data-key={line.key}
       data-part="body"
+      data-movable="true"
+      data-parallel-highlight={parallelHighlights.has(line.key) || undefined}
       tabindex="0"
       role="button"
       aria-pressed={line.key === selected}
-      aria-label={line.name}
+      aria-label={`${line.name}${line.parallelKeys.length ? "（平行な相手あり）" : ""}`}
       class:candidate={candidate === line.key}
       class:pin-overlap={overlapped.has(line.key)}
     >
@@ -224,10 +240,35 @@ $effect(() => {
         x2={line.end.x}
         y2={line.end.y}
         stroke="#56c7e9"
-        stroke-width={line.key === selected ? 3 : 2}
+        stroke-width={line.key === selected || parallelHighlights.has(line.key)
+          ? 3
+          : 2}
         vector-effect="non-scaling-stroke"
         fill="none"
       />
+      {#if line.parallelPath}
+        <path
+          data-part="parallel-mark"
+          d={line.parallelPath}
+          stroke="#17313e"
+          stroke-width="4"
+          vector-effect="non-scaling-stroke"
+          fill="none"
+          stroke-linejoin="round"
+          pointer-events="none"
+          aria-hidden="true"
+        />
+        <path
+          d={line.parallelPath}
+          stroke="#56c7e9"
+          stroke-width="2"
+          vector-effect="non-scaling-stroke"
+          fill="none"
+          stroke-linejoin="round"
+          pointer-events="none"
+          aria-hidden="true"
+        />
+      {/if}
     </g>
   {/each}
   {#each scene.markers as m (m.key)}

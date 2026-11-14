@@ -12,7 +12,7 @@
     "typecheck": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings && tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "test": "bun run build:wasm && bun test tests/core.test.ts tests/image.test.ts tests/circle-detection.test.ts tests/labels.test.ts",
+    "test": "bun run build:wasm && bun test tests/core.test.ts tests/image.test.ts tests/circle-detection.test.ts tests/labels.test.ts tests/parallel.test.ts",
     "test:browser": "bun run build && bun tests/browser.ts",
     "test:performance": "bun tests/performance.ts"
   },

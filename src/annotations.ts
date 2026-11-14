@@ -24,6 +24,7 @@ import {
   resolveCenter,
   scaleFactor,
 } from "./model";
+import { parallelMeasurements } from "./parallel";
 
 export interface Marker {
   key: string;
@@ -47,6 +48,8 @@ export interface Line {
   name: string;
   start: ImagePoint;
   end: ImagePoint;
+  parallelKeys: string[];
+  parallelPath: string;
 }
 export interface Annotations {
   circles: Circle[];
@@ -155,6 +158,7 @@ export function prepareAnnotations(
       "#e875b9",
     );
   }
+  const parallels = parallelMeasurements(doc);
   for (const measurement of doc.measurements) {
     const a = resolveCenter(doc, measurement.from),
       b = resolveCenter(doc, measurement.to);
@@ -166,7 +170,20 @@ export function prepareAnnotations(
     const key = `measurement:${measurement.id}`,
       name = `${endpointName(doc, measurement.from)} → ${endpointName(doc, measurement.to)}`;
     labelLines.push({ start, end });
-    lines.push({ key, name, start, end });
+    const parallelKeys = [...(parallels.get(measurement.id) ?? [])].map(
+      (id) => `measurement:${id}`,
+    );
+    const parallelPath = parallelKeys.length
+      ? parallelMarkPath(start, end, zoom)
+      : "";
+    lines.push({ key, name, start, end, parallelKeys, parallelPath });
+    if (parallelPath)
+      obstacles.push({
+        x: (start.x + end.x) / 2 - 10 / zoom,
+        y: (start.y + end.y) / 2 - 10 / zoom,
+        width: 20 / zoom,
+        height: 20 / zoom,
+      });
     addLabel(
       mid,
       formatDistance(measuredDistance(doc, measurement), doc),
@@ -323,6 +340,19 @@ export const crossPath = (q: ImagePoint, z: number) =>
   `M${q.x - 6 / z},${q.y - 6 / z}l${12 / z},${12 / z}M${q.x - 6 / z},${q.y + 6 / z}l${12 / z},${-12 / z}`;
 export const diamondPath = (q: ImagePoint, z: number) =>
   `M${q.x},${q.y - 7 / z}l${7 / z},${7 / z}l${-7 / z},${7 / z}l${-7 / z},${-7 / z}Z`;
+export function parallelMarkPath(a: ImagePoint, b: ImagePoint, z: number) {
+  const dx = b.x - a.x,
+    dy = b.y - a.y,
+    length = Math.hypot(dx, dy);
+  if (!length) return "";
+  // The chevrons have no direction: reversing endpoints keeps the same mark.
+  const sign = dx < 0 || (dx === 0 && dy < 0) ? -1 : 1,
+    ux = (sign * dx) / length / z,
+    uy = (sign * dy) / length / z;
+  const point = (x: number, y: number) =>
+    `${(a.x + b.x) / 2 + x * ux - y * uy},${(a.y + b.y) / 2 + x * uy + y * ux}`;
+  return `M${point(-7, -5)}L${point(-1, 0)}L${point(-7, 5)}M${point(1, -5)}L${point(7, 0)}L${point(1, 5)}`;
+}
 export function boundaryPath(p: Projection) {
   const a = p.renderArea,
     right = a.x + a.width,

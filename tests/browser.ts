@@ -10,6 +10,7 @@ import { checkHover } from "./hover";
 import { checkImageLoading } from "./image-loading";
 import { checkInteractions } from "./interactions";
 import { checkLabelBackends } from "./label-browser";
+import { checkParallel, checkParallelTouch } from "./parallel-browser";
 import { checkProject } from "./project";
 import { checkReactivity } from "./reactivity";
 import { checkTouch } from "./touch";
@@ -1133,6 +1134,17 @@ try {
       } finally {
         await projectPage.close();
       }
+      const parallelPage = await context.newPage();
+      try {
+        await parallelPage.goto(page.url());
+        await checkParallel(
+          parallelPage,
+          name,
+          await imagePayload(parallelPage),
+        );
+      } finally {
+        await parallelPage.close();
+      }
       if (name === "chromium") {
         const touchContext = await browser.newContext({
           viewport: { width: 900, height: 1000 },
@@ -1141,7 +1153,10 @@ try {
         try {
           const touchPage = await touchContext.newPage();
           await touchPage.goto(`http://127.0.0.1:${server.port}/nested/`);
-          await checkTouch(touchPage, await imagePayload(touchPage));
+          const image = await imagePayload(touchPage);
+          await checkTouch(touchPage, image);
+          await touchPage.reload();
+          await checkParallelTouch(touchPage, image);
         } finally {
           await touchContext.close();
         }
