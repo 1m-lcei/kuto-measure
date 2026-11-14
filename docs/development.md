@@ -22,13 +22,9 @@ bun run test:browser
 Linuxではブラウザ準備に`--with-deps`を追加してください。
 整形・安全なlint修正は`bun run format`で実行できます。
 
-Windowsのパッケージ化アプリ内でFirefoxが `spawn UNKNOWN` やサイドバイサイド構成エラーにより起動できない場合は、AppDataの仮想化を避けるため、ブラウザをAppData外へ配置します。リポジトリがAppData外にある場合、PowerShellで次を実行してください。インストールとテストの両方に同じ環境変数が必要です。
-
-```powershell
-$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location).Path 'test-results\playwright-browsers'
-bun x playwright install chromium firefox webkit
-bun run test:browser
-```
+`PLAYWRIGHT_BROWSERS_PATH` が設定されている環境では、インストールとテストの両方でその共有キャッシュを使用し、プロジェクト内の保存先で上書きしません。
+Windowsのパッケージ化アプリ内でFirefoxが `spawn UNKNOWN` やサイドバイサイド構成エラーにより起動できない場合は、AppData外の共有先（例：`%USERPROFILE%\.cache\ms-playwright`）をWindowsのユーザー環境変数として設定し、アプリ・ターミナルを再起動します。ユーザー設定は通常のWindows環境へ保存されていることを確認してください。
+共有キャッシュは他プロジェクトも使用するため、旧キャッシュの整理は利用元と移行を確認してから行います。設定方法とブラウザの管理は[Playwright公式文書](https://playwright.dev/docs/browsers#managing-browser-binaries)を参照してください。
 
 ## 構成
 
