@@ -137,7 +137,7 @@ export async function checkReactivity(
   await page.locator("#pin-group").selectOption({ index: 1 });
   const groupId = await page.locator("#pin-group").inputValue();
   assert(groupId);
-  const groupDetail = await pin.locator("small").innerText();
+  const groupDetail = await pin.locator("small").textContent();
   assert(groupDetail);
   await page.locator("#undo").click();
   await expect(page.locator("#pin-group")).toHaveValue("");

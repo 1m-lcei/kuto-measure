@@ -72,11 +72,7 @@ $effect(() => {
 });
 </script>
 
-{#snippet text(
-  x: number,
-  y: number,
-  label: string,
-)}
+{#snippet text(x: number, y: number, label: string)}
   <text
     {x}
     {y}
@@ -93,10 +89,8 @@ $effect(() => {
   </text>
 {/snippet}
 
-{#snippet marker(
-  m: Marker,
-  control = false,
-)}
+{#snippet marker(m: Marker, control = false)}
+  <!-- biome-ignore-start lint/a11y/useSemanticElements: SVG has no native button element -->
   <g
     data-key={m.key}
     data-part={control ? "handle" : "body"}
@@ -109,6 +103,7 @@ $effect(() => {
     class:candidate={candidate === m.key}
     class:pin-overlap={overlapped.has(m.key)}
   >
+    <!-- biome-ignore-end lint/a11y/useSemanticElements: SVG button attributes -->
     <circle
       class="hit"
       cx={m.point.x}
@@ -182,6 +177,7 @@ $effect(() => {
 </defs>
 <g clip-path="url(#image-clip)">
   {#each scene.circles as c (c.key)}
+    <!-- biome-ignore-start lint/a11y/useSemanticElements: SVG has no native button element -->
     <g
       data-key={c.key}
       data-part="body"
@@ -192,6 +188,7 @@ $effect(() => {
       class:candidate={candidate === c.key}
       class:pin-overlap={overlapped.has(c.key)}
     >
+      <!-- biome-ignore-end lint/a11y/useSemanticElements: SVG button attributes -->
       <path
         class="line-hit"
         d={c.path}
@@ -211,6 +208,7 @@ $effect(() => {
     </g>
   {/each}
   {#each scene.lines as line (line.key)}
+    <!-- biome-ignore-start lint/a11y/useSemanticElements: SVG has no native button element -->
     <g
       data-key={line.key}
       data-part="body"
@@ -223,6 +221,7 @@ $effect(() => {
       class:candidate={candidate === line.key}
       class:pin-overlap={overlapped.has(line.key)}
     >
+      <!-- biome-ignore-end lint/a11y/useSemanticElements: SVG button attributes -->
       <line
         class="line-hit"
         x1={line.start.x}
@@ -275,6 +274,7 @@ $effect(() => {
     {@render marker(m)}
   {/each}
   {#each scene.labels as box (box.label.key)}
+    <!-- biome-ignore-start lint/a11y/useAriaPropsSupportedByRole: The button role and aria-pressed are enabled together -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -- focusable only with button role; keyboard handling lives on the workspace -->
     <g
       data-key={box.label.key}
@@ -289,6 +289,7 @@ $effect(() => {
       class:pin-overlap={overlapped.has(box.label.key)}
       pointer-events="none"
     >
+      <!-- biome-ignore-end lint/a11y/useAriaPropsSupportedByRole: SVG label attributes -->
       {#if box.leader}
         <line
           class="label-leader"
@@ -322,6 +323,7 @@ $effect(() => {
   {/each}
 </g>
 {#if boundary && !areaPreview}
+  <!-- biome-ignore lint/a11y/noInteractiveElementToNoninteractiveRole: The SVG path describes the boundary and has no interaction -->
   <path
     class="excluded-boundary"
     d={boundary}
@@ -353,6 +355,7 @@ $effect(() => {
   {/if}
 {/each}
 {#if areaPreview}
+  <!-- biome-ignore lint/a11y/noInteractiveElementToNoninteractiveRole: The SVG group describes the preview and has no interaction -->
   <g
     class="area-preview"
     pointer-events="none"

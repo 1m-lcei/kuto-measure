@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.4.2",
+  "packageManager": "bun@1.4.4",
   "scripts": {
     "dev": "bun run build:wasm && vite --host 127.0.0.1",
     "build:wasm": "wat2wasm src/circle-score.wat -o src/circle-score.wasm && wat2wasm src/label-score.wat -o src/label-score.wasm",
@@ -17,16 +17,16 @@
     "test:performance": "bun tests/performance.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.7",
     "@sveltejs/vite-plugin-svelte": "7.3.1",
-    "@types/bun": "1.4.2",
-    "playwright": "1.63.0",
-    "svelte-check": "4.7.6",
+    "@types/bun": "1.4.4",
+    "playwright": "1.65.1",
+    "svelte-check": "4.7.8",
     "typescript": "^6.0.3",
-    "vite": "8.3.2",
+    "vite": "8.3.8",
     "wabt": "1.0.39"
   },
   "dependencies": {
-    "svelte": "5.57.1"
+    "svelte": "5.57.3"
   }
 }

@@ -34,12 +34,12 @@ function outside(event: MouseEvent) {
 }
 </script>
 
+<!-- biome-ignore-start lint/a11y/useKeyWithClickEvents: Native dialogs already support Escape; this click handles backdrop dismissal -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -- native dialog backdrop dismissal -->
 <dialog
   bind:this={dialog}
   {id}
   aria-labelledby={labelledby}
-  closedby="any"
   {ontoggle}
   onbeforetoggle={(event) => {
     if (event.newState === "closed") open = false;
@@ -54,14 +54,11 @@ function outside(event: MouseEvent) {
     startedOutside = outside(event);
   }}
   onclick={(event) => {
-    if (
-      !("closedBy" in HTMLDialogElement.prototype) &&
-      startedOutside &&
-      outside(event)
-    )
-      open = false;
+    // Native light dismiss can close a dialog opened during pointerup.
+    if (startedOutside && outside(event)) open = false;
     startedOutside = false;
   }}
 >
+  <!-- biome-ignore-end lint/a11y/useKeyWithClickEvents: Native dialog handlers -->
   {@render children()}
 </dialog>

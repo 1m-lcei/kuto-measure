@@ -243,11 +243,15 @@ function detect() {
   border-radius: 4px;
   color: var(--accent);
   background: var(--soft);
-  color: light-dark(#854d0e, #fcd34d);
-  background: light-dark(#fef3c7, #422b10);
   font-size: 0.85em;
   line-height: 1;
   white-space: nowrap;
+}
+@supports (color: light-dark(white, black)) {
+  .experimental-badge {
+    color: light-dark(#854d0e, #fcd34d);
+    background: light-dark(#fef3c7, #422b10);
+  }
 }
 ol {
   padding: 0;

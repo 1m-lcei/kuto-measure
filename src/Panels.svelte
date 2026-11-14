@@ -481,6 +481,7 @@ const selectionTitles = {
 {/snippet}
 
 <aside class="inspector-stack" aria-label="測定と画像設定" inert={loading}>
+  <!-- biome-ignore lint/a11y/useSemanticElements: The group labels panel navigation buttons -->
   <div class="panel-switch" role="group" aria-label="パネル表示">
     <button
       id="edit-panel-button"
@@ -666,12 +667,14 @@ const selectionTitles = {
             <span id="object-count">{objectCount}</span>
           </h2>
         </div>
+        <!-- biome-ignore-start lint/a11y/useSemanticElements: The group labels object list action buttons -->
         <div
           id="object-order"
           class="object-list-actions"
           role="group"
           aria-label="一覧の操作"
         >
+          <!-- biome-ignore-end lint/a11y/useSemanticElements: Object list group attributes -->
           <p id="object-order-hint" class="sr-only">
             選択中の対象を、同じ種類の中で並び替えます。
           </p>
@@ -721,7 +724,7 @@ const selectionTitles = {
           {#each doc.measurements as m (m.id)}
             {@render row(
               { kind: "measurement", id: m.id },
-              endpointName(doc, m.from) + " → " + endpointName(doc, m.to),
+              `${endpointName(doc, m.from)} → ${endpointName(doc, m.to)}`,
               measurementValue(m),
               "↔",
               !doc.reference?.radiusGame && m === doc.measurements[0]
@@ -768,7 +771,7 @@ const selectionTitles = {
           {#each doc.guides as guide (guide.id)}
             {@render row(
               { kind: "guide", id: guide.id },
-              "半径 " + formatDistance(guide.radiusGame, doc),
+              `半径 ${formatDistance(guide.radiusGame, doc)}`,
               guideDetail(guide),
               "◌",
               "補助円",
@@ -779,7 +782,7 @@ const selectionTitles = {
               { kind: "reference" },
               "基準円",
               doc.reference.radiusGame
-                ? "半径 " + formatDistance(doc.reference.radiusGame, doc)
+                ? `半径 ${formatDistance(doc.reference.radiusGame, doc)}`
                 : "半径を入力してください",
               "◎",
               "基準",

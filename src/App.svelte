@@ -223,10 +223,9 @@ const detectedPaths = $derived(
           projectCircle(circle.center, circle.radiusGround, projection, 0.5)
             ?.points ?? [];
         return {
-          path:
-            points
-              .map((point, i) => `${i ? "L" : "M"}${point.x},${point.y}`)
-              .join(" ") + "Z",
+          path: `${points
+            .map((point, i) => `${i ? "L" : "M"}${point.x},${point.y}`)
+            .join(" ")}Z`,
           center: groundToImage(circle.center, projection),
         };
       })
@@ -717,8 +716,7 @@ function moveEdit(
 function refreshDragPreview() {
   const d = drag;
   if (
-    !d ||
-    !d.moved ||
+    !d?.moved ||
     d.pan ||
     d.label ||
     d.area ||
@@ -1601,6 +1599,7 @@ onMount(() => {
   <div id="error" role="alert" hidden={!errorMessage}>{errorMessage}</div>
   <div class="layout">
     <section class="canvas-panel" aria-label="編集">
+      <!-- biome-ignore-start lint/a11y/noNoninteractiveTabindex: The image workspace implements keyboard editing through its application role. -->
       <!-- svelte-ignore a11y_no_noninteractive_tabindex a11y_no_noninteractive_element_interactions -- keyboard-operated image workspace supports arrows and Enter -->
       <div
         id="viewport"
@@ -1633,6 +1632,7 @@ onMount(() => {
           if (event.dataTransfer) void openFiles(event.dataTransfer.files);
         }}
       >
+        <!-- biome-ignore-end lint/a11y/noNoninteractiveTabindex: Only the workspace itself requires keyboard focus. -->
         <div id="empty" hidden={!!resource}>
           <div class="empty-intro">
             <h2>スクリーンショットを開く</h2>

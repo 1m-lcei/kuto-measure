@@ -1,7 +1,8 @@
 # 開発・検証・公開
 
-Bun 1.4.2、Svelte 5、TypeScript 6、Viteを使用します。実行時の依存はSvelteだけです。
-型検査は `svelte-check` と `tsc`、TypeScriptの指定範囲は `^6.0.3` です。依存更新には `bun update` を使用します。
+Bun 1.4.4、Svelte 5、TypeScript 6、Viteを使用します。実行時の依存はSvelteだけです。
+型検査は `svelte-check` と `tsc`、TypeScriptの指定範囲は `^6.0.3` です。`svelte-check` の対応範囲に合わせ、TypeScriptは6系を使用します。
+依存更新には `bun update --latest '!typescript'` を使用します。TypeScriptは互換性を確認してから個別に更新します。
 
 ```sh
 bun install --frozen-lockfile
@@ -20,6 +21,14 @@ bun run test:browser
 `bun run test:browser` はビルド後、生成した`dist`を`/nested/`配下で配信し、Chromium・Firefox・WebKitで検証します。
 Linuxではブラウザ準備に`--with-deps`を追加してください。
 整形・安全なlint修正は`bun run format`で実行できます。
+
+Windowsのパッケージ化アプリ内でFirefoxが `spawn UNKNOWN` やサイドバイサイド構成エラーにより起動できない場合は、AppDataの仮想化を避けるため、ブラウザをAppData外へ配置します。リポジトリがAppData外にある場合、PowerShellで次を実行してください。インストールとテストの両方に同じ環境変数が必要です。
+
+```powershell
+$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location).Path 'test-results\playwright-browsers'
+bun x playwright install chromium firefox webkit
+bun run test:browser
+```
 
 ## 構成
 
